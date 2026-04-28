@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="oculusit.sync.connectwise/oculusit.sync.connectwise.csproj" />
+  <Project Path="oculusit.sync.core/oculusit.sync.core.csproj" />
+  <Project Path="oculusit.sync.keka/oculusit.sync.keka.csproj" />
+  <Project Path="oculusit.sync.orchestration/oculusit.sync.orchestration.csproj" />
+  <Project Path="oculusit.sync/oculusit.sync.csproj" />
+</Solution>
