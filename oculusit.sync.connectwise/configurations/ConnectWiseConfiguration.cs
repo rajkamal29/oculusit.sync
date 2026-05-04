@@ -15,4 +15,5 @@ public sealed class ConnectWiseConfiguration
     /// Page size for paginated ConnectWise API calls. Default is 50 if not set.
     /// </summary>
     public int PageSize { get; init; } = 100;
+    public string Environment {  get; init; } = string.Empty;
 }

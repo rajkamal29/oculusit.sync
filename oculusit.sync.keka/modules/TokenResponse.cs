@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace oculusit.sync.keka.modules;
 
+
 public sealed class TokenResponse
 {
     [JsonPropertyName("access_token")]

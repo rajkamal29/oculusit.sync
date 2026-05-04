@@ -57,7 +57,7 @@ public sealed class ConnectWiseService(
         {
             var relativeUrl = $"/company/companies" +
                               $"?pageSize={_config.PageSize}&page={page}" +
-                              $"&fields=id,identifier,name,status,phoneNumber,website" +
+                              $"&fields=id,identifier,name,status,type,addressLine1,addressLine2,city,state,zip,country,phoneNumber,faxNumber,website,invoiceCCEmailAddress,dateEntered,lastUpdated" +
                               $"&orderBy=id asc";
 
             _logger.LogDebug("Fetching ConnectWise companies page {Page}", page);

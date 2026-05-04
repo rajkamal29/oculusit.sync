@@ -1,13 +1,17 @@
 using oculusit.sync.orchestration;
 
-namespace oculusit.sync
+namespace oculusit.sync;
+
+public sealed class Worker(
+    ILogger<Worker> logger,
+    ICompanyOrchestrationService orchestration) : BackgroundService
 {
-    public class Worker(ILogger<Worker> logger, ICompanyOrchestrationService orchestration) : BackgroundService
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            var companies = await orchestration.GetAllCompaniesAsync(stoppingToken);
-            logger.LogInformation("Fetched {Count} companies from ConnectWise.", companies.Count);
-        }
+        logger.LogInformation("Worker started. Beginning ConnectWise to Keka sync.");
+
+        await orchestration.SyncCompaniesToKekaAsync(stoppingToken);
+
+        logger.LogInformation("Sync complete. Worker shutting down.");
     }
 }

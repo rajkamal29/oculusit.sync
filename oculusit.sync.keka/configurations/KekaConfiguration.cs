@@ -18,4 +18,5 @@ public sealed class KekaConfiguration
     /// Default is 60 seconds before expiry.
     /// </summary>
     public int TokenExpiryBufferSeconds { get; init; } = 60;
+    public string ApiKey {  get; init; } = string.Empty;
 }

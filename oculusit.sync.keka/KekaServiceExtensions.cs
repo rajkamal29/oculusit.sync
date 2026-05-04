@@ -17,8 +17,15 @@ public static class KekaServiceExtensions
         services.AddHttpClient(nameof(KekaTokenService))
                 .AddStandardResilienceHandler();
 
-        // Singleton so the token cache is shared across all usages
+        services.AddHttpClient(nameof(KekaClientService))
+                .AddStandardResilienceHandler();
+
+        services.AddHttpClient(nameof(KekaCurrencyService))
+                .AddStandardResilienceHandler();
+
         services.AddSingleton<IKekaTokenService, KekaTokenService>();
+        services.AddSingleton<IKekaClientService, KekaClientService>();
+        services.AddSingleton<IKekaCurrencyService, KekaCurrencyService>();
 
         return services;
     }

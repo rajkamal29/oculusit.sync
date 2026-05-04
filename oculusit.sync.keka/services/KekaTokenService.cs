@@ -66,10 +66,11 @@ public sealed class KekaTokenService(
 
             var formContent = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["client_id"]     = _config.ClientId,
+                ["client_id"] = _config.ClientId,
                 ["client_secret"] = _config.ClientSecret,
-                ["grant_type"]    = _config.GrantType,
-                ["scope"]         = _config.Scope
+                ["grant_type"] = _config.GrantType,
+                ["scope"] = _config.Scope,
+                ["api_key"] = _config.ApiKey
             });
 
             var requestUri = new Uri(new Uri(_config.IdentityUrl), _config.TokenEndpoint);
