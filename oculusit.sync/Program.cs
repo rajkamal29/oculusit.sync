@@ -20,6 +20,9 @@ namespace oculusit.sync
             {
                 var builder = Host.CreateApplicationBuilder(args);
 
+                // Configuration is supplied via environment variables injected by ECS
+                // from SSM Parameter Store at task startup. No AWS SDK calls needed here.
+                // Locally, appsettings.json and user secrets are used instead.
                 builder.Services.AddCoreServices(builder.Configuration);
 
                 Log.Logger = new LoggerConfiguration()

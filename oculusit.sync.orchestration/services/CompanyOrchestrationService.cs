@@ -59,20 +59,14 @@ public sealed class CompanyOrchestrationService(
                     });
                     continue;
                 }
-                else if (ShouldUpdateClient(existing, request))
+                else 
                 {
                     await kekaClientService.UpdateClientAsync(existing.Id, request, cancellationToken);
                     logger.LogInformation("Updated Keka client {KekaClientId} for ConnectWise company {CompanyId} - {CompanyName}",
                         existing.Id, company.Id, company.Name);
                     updated++;
                 }
-                else
-                {
-                    logger.LogDebug("Keka client {KekaClientId} for company {CompanyId} - {CompanyName} is unchanged, skipping.",
-                        existing.Id, company.Id, company.Name);
-                    skipped++;
-                }
-
+             
                 syncedEntries.Add(new SyncedCompanyEntry
                 {
                     Id       = company.Id.ToString(),
@@ -92,14 +86,6 @@ public sealed class CompanyOrchestrationService(
             created, updated, skipped, failed);
 
         return syncedEntries;
-    }
-
-    private static bool ShouldUpdateClient(KekaClient existing, KekaClientRequest incoming)
-    {
-        if (existing.Name != incoming.Name) return true;
-        if (existing.Description != incoming.Description) return true;
-        if (existing.Code != incoming.Code.ToString()) return true;
-        return false;
     }
 
     public async Task<IReadOnlyList<SyncedCompanyEntry>> SyncCompaniesIncrementalAsync(
