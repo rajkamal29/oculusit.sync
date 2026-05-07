@@ -116,7 +116,7 @@ public sealed class KekaClientService(
             if (envelope?.Data is { Count: > 0 } page)
                 allClients.AddRange(page);
 
-            hasMoreItems = envelope?.HasMoreItems ?? false;
+            hasMoreItems = pageNumber < envelope?.TotalPages;
             pageNumber++;
         }
         while (hasMoreItems);

@@ -60,6 +60,6 @@ internal sealed class KekaDataListResponse<T>
     [JsonPropertyName("pageSize")]
     public int PageSize { get; init; }
 
-    [JsonPropertyName("hasMoreItems")]
-    public bool HasMoreItems { get; init; }
+    [JsonPropertyName("totalPages")]
+    public int TotalPages { get; init; }
 }
