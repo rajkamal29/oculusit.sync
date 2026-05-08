@@ -88,6 +88,51 @@ public static class KekaClientMapper
             : FallbackCountryCode;
     }
 
+    public static KekaClientUpdateRequest MapToKekaClientUpdateRequest(
+        ConnectWiseCompany company)
+    {
+        var addressLine1 = NullIfEmpty(company.AddressLine1);
+        var addressLine2 = NullIfEmpty(company.AddressLine2);
+        var city         = NullIfEmpty(company.City);
+        var state        = NullIfEmpty(company.State);
+        var zip          = NullIfEmpty(company.Zip);
+        // CountryCode is mandatory in Keka — always falls back to "US" when not resolvable.
+        var countryCode  = ResolveCountryCode(company.Country?.Name);
+
+        // BillingAddress is always built so the mandatory countryCode is always present.
+        // If neither any address detail exists, omit billing address entirely.
+        var hasBillingData = addressLine1 is not null || city is not null
+                          || state is not null || zip is not null;
+
+        KekaBillingAddress? billingAddress = hasBillingData
+            ? new KekaBillingAddress
+            {
+                AddressLine1 = addressLine1,
+                AddressLine2 = addressLine2,
+                CountryCode  = countryCode,   // never null — defaults to "US"
+                City         = city,
+                State        = state,
+                Zip          = zip
+            }
+            : new KekaBillingAddress
+            {
+                CountryCode = countryCode,
+            };
+
+        return new KekaClientUpdateRequest
+        {
+            Name        = company.Name,
+            Description = NullIfEmpty(company.Identifier),
+            Code        = company.Id,
+            Phone       = NullIfEmpty(company.PhoneNumber),
+            Website     = NullIfEmpty(company.Website),
+            Email       = string.IsNullOrWhiteSpace(company.InvoiceCCEmailAddress)
+                            ? FallbackEmail
+                            : ExtractFirstEmail(company.InvoiceCCEmailAddress),
+            BillingAddress = billingAddress
+        };
+    }
+
     private static string? NullIfEmpty(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
 

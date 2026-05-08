@@ -166,7 +166,7 @@ public sealed class KekaClientService(
         return envelope.Data;
     }
 
-    public async Task UpdateClientAsync(string clientId, KekaClientRequest request, CancellationToken cancellationToken = default)
+    public async Task UpdateClientAsync(string clientId, KekaClientUpdateRequest request, CancellationToken cancellationToken = default)
     {
         await SetAuthHeaderAsync(cancellationToken);
 

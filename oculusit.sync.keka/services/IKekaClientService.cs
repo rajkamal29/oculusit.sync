@@ -23,5 +23,5 @@ public interface IKekaClientService
     /// <summary>
     /// Updates an existing Keka client by Keka client ID.
     /// </summary>
-    Task UpdateClientAsync(string clientId, KekaClientRequest request, CancellationToken cancellationToken = default);
+    Task UpdateClientAsync(string clientId, KekaClientUpdateRequest request, CancellationToken cancellationToken = default);
 }

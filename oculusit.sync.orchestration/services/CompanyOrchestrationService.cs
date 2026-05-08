@@ -61,12 +61,13 @@ public sealed class CompanyOrchestrationService(
                 }
                 else 
                 {
-                    await kekaClientService.UpdateClientAsync(existing.Id, request, cancellationToken);
+                    var updateRequest = KekaClientMapper.MapToKekaClientUpdateRequest(company);
+                    await kekaClientService.UpdateClientAsync(existing.Id, updateRequest, cancellationToken);
                     logger.LogInformation("Updated Keka client {KekaClientId} for ConnectWise company {CompanyId} - {CompanyName}",
                         existing.Id, company.Id, company.Name);
                     updated++;
                 }
-             
+              
                 syncedEntries.Add(new SyncedCompanyEntry
                 {
                     Id       = company.Id.ToString(),
@@ -125,7 +126,8 @@ public sealed class CompanyOrchestrationService(
                 if (kekaIdByCompanyId.TryGetValue(companyIdStr, out var kekaClientId))
                 {
                     // Known company — update the existing Keka client directly by ID.
-                    await kekaClientService.UpdateClientAsync(kekaClientId, request, cancellationToken);
+                    var updateRequest = KekaClientMapper.MapToKekaClientUpdateRequest(company);
+                    await kekaClientService.UpdateClientAsync(kekaClientId, updateRequest, cancellationToken);
                     logger.LogInformation(
                         "Incremental: Updated Keka client {KekaClientId} for ConnectWise company {CompanyId} - {CompanyName}",
                         kekaClientId, company.Id, company.Name);
