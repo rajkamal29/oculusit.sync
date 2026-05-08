@@ -92,11 +92,9 @@ public static class KekaClientMapper
         string.IsNullOrWhiteSpace(value) ? null : value;
 
     /// <summary>
-    /// Returns the first email address from a semicolon-separated list,
-    /// or the original value if it contains no semicolons.
+    /// Returns the first email address from a semicolon or comma separated list.
+    /// If only a single email is present, returns it trimmed as-is.
     /// </summary>
     private static string ExtractFirstEmail(string email) =>
-        email.Contains(';')
-            ? email.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)[0]
-            : email.Trim();
+        email.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)[0];
 }
