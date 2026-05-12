@@ -16,8 +16,11 @@ public sealed class DynamoDbSyncStateService(
     private const string KeyAttribute           = "syncType";
     private const string LastUpdatedAtAttribute = "lastUpdatedAt";
     private const string CompaniesAttribute     = "companies";
+    private const string FailedCompaniesAttribute = "failedCompanies";
     private const string IdAttribute            = "id";
+    private const string CompanyNameAttribute   = "companyName";
     private const string ClientIdAttribute      = "clientId";
+    private const string ErrorMessageAttribute  = "errorMessage";
 
     private readonly string _tableName = options.Value.TableName;
 
@@ -65,11 +68,30 @@ public sealed class DynamoDbSyncStateService(
             }
         }
 
+        var failedCompanies = new List<FailedCompanyEntry>();
+        if (response.Item.TryGetValue(FailedCompaniesAttribute, out var failedListAttr) && failedListAttr.L is { Count: > 0 })
+        {
+            foreach (var entry in failedListAttr.L)
+            {
+                if (entry.M is null) continue;
+                entry.M.TryGetValue(IdAttribute, out var idAttr);
+                entry.M.TryGetValue(CompanyNameAttribute, out var companyNameAttr);
+                entry.M.TryGetValue(ErrorMessageAttribute, out var errorAttr);
+                failedCompanies.Add(new FailedCompanyEntry
+                {
+                    Id           = idAttr?.S ?? string.Empty,
+                    CompanyName  = companyNameAttr?.S ?? string.Empty,
+                    ErrorMessage = errorAttr?.S ?? string.Empty
+                });
+            }
+        }
+
         return new SyncState
         {
-            SyncType      = syncType,
-            LastUpdatedAt = lastUpdatedAt,
-            Companies     = companies
+            SyncType         = syncType,
+            LastUpdatedAt    = lastUpdatedAt,
+            Companies        = companies,
+            FailedCompanies  = failedCompanies
         };
     }
 
@@ -100,6 +122,22 @@ public sealed class DynamoDbSyncStateService(
             };
         }
 
+        if (state.FailedCompanies.Count > 0)
+        {
+            item[FailedCompaniesAttribute] = new AttributeValue
+            {
+                L = state.FailedCompanies.Select(f => new AttributeValue
+                {
+                    M = new Dictionary<string, AttributeValue>
+                    {
+                        [IdAttribute]           = new AttributeValue { S = f.Id },
+                        [CompanyNameAttribute]  = new AttributeValue { S = f.CompanyName },
+                        [ErrorMessageAttribute] = new AttributeValue { S = f.ErrorMessage }
+                    }
+                }).ToList()
+            };
+        }
+
         var request = new PutItemRequest
         {
             TableName = _tableName,
@@ -108,24 +146,35 @@ public sealed class DynamoDbSyncStateService(
 
         await dynamoDb.PutItemAsync(request, cancellationToken);
 
-        logger.LogInformation("Saved sync state for syncType={SyncType}, lastUpdatedAt={LastUpdatedAt}, companies={Count}.",
-            state.SyncType, state.LastUpdatedAt, state.Companies.Count);
+        logger.LogInformation("Saved sync state for syncType={SyncType}, lastUpdatedAt={LastUpdatedAt}, companies={Companies}, failedCompanies={FailedCompanies}.",
+            state.SyncType, state.LastUpdatedAt, state.Companies.Count, state.FailedCompanies.Count);
     }
 
-    public async Task AppendCompaniesAsync(
+    public async Task AppendSyncStateAsync(
         string syncType,
-        IReadOnlyList<SyncedCompanyEntry> newEntries,
+        SyncState incrementalState,
         DateTime lastUpdatedAt,
         CancellationToken cancellationToken = default)
     {
-        logger.LogDebug("Appending {Count} company entries to DynamoDB for syncType={SyncType}.", newEntries.Count, syncType);
+        logger.LogDebug("Appending incremental sync state for syncType={SyncType}. companies={Companies}, failedCompanies={FailedCompanies}",
+            syncType, incrementalState.Companies.Count, incrementalState.FailedCompanies.Count);
 
-        var newItems = newEntries.Select(c => new AttributeValue
+        var companyItems = incrementalState.Companies.Select(c => new AttributeValue
         {
             M = new Dictionary<string, AttributeValue>
             {
                 [IdAttribute]       = new AttributeValue { S = c.Id },
                 [ClientIdAttribute] = new AttributeValue { S = c.ClientId }
+            }
+        }).ToList();
+
+        var failedItems = incrementalState.FailedCompanies.Select(f => new AttributeValue
+        {
+            M = new Dictionary<string, AttributeValue>
+            {
+                [IdAttribute]           = new AttributeValue { S = f.Id },
+                [CompanyNameAttribute]  = new AttributeValue { S = f.CompanyName },
+                [ErrorMessageAttribute] = new AttributeValue { S = f.ErrorMessage }
             }
         }).ToList();
 
@@ -136,25 +185,97 @@ public sealed class DynamoDbSyncStateService(
             {
                 [KeyAttribute] = new AttributeValue { S = syncType }
             },
-            // list_append appends newItems to the existing companies list.
-            // if_not_exists handles the edge case where companies attribute doesn't exist yet.
-            UpdateExpression = "SET #companies = list_append(if_not_exists(#companies, :empty), :newItems), #lastUpdatedAt = :lastUpdatedAt",
+            UpdateExpression = "SET #companies = list_append(if_not_exists(#companies, :empty), :newCompanies), #failedCompanies = list_append(if_not_exists(#failedCompanies, :empty), :newFailed), #lastUpdatedAt = :lastUpdatedAt",
             ExpressionAttributeNames = new Dictionary<string, string>
             {
-                ["#companies"]     = CompaniesAttribute,
+                ["#companies"] = CompaniesAttribute,
+                ["#failedCompanies"] = FailedCompaniesAttribute,
                 ["#lastUpdatedAt"] = LastUpdatedAtAttribute
             },
             ExpressionAttributeValues = new Dictionary<string, AttributeValue>
             {
-                [":newItems"]      = new AttributeValue { L = newItems },
-                [":empty"]         = new AttributeValue { L = [] },
+                [":newCompanies"] = new AttributeValue { L = companyItems },
+                [":newFailed"] = new AttributeValue { L = failedItems },
+                [":empty"] = new AttributeValue { L = [] },
                 [":lastUpdatedAt"] = new AttributeValue { S = lastUpdatedAt.ToString("o") }
             }
         };
 
         await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
 
-        logger.LogInformation("Appended {Count} company entries and updated lastUpdatedAt={LastUpdatedAt} for syncType={SyncType}.",
-            newEntries.Count, lastUpdatedAt, syncType);
+        logger.LogInformation("Appended incremental sync state for syncType={SyncType}. companies={Companies}, failedCompanies={FailedCompanies}, lastUpdatedAt={LastUpdatedAt}.",
+            syncType, incrementalState.Companies.Count, incrementalState.FailedCompanies.Count, lastUpdatedAt);
+    }
+
+    public async Task RemoveFailedCompaniesAsync(
+        string syncType,
+        IReadOnlyList<string> failedCompanyIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (failedCompanyIds.Count == 0)
+        {
+            logger.LogDebug("No failed company IDs provided for removal.");
+            return;
+        }
+
+        logger.LogDebug("Removing {Count} failed company entries from DynamoDB for syncType={SyncType}.", failedCompanyIds.Count, syncType);
+
+        // First, get the current state to filter out the removed IDs
+        var currentState = await GetAsync(syncType, cancellationToken);
+        if (currentState?.FailedCompanies.Count == 0)
+        {
+            logger.LogDebug("No failed companies in sync state to remove.");
+            return;
+        }
+
+        // Create a HashSet of IDs to remove for O(1) lookup
+        var idsToRemove = new HashSet<string>(failedCompanyIds);
+
+        // Filter out the removed companies
+        var remainingFailedCompanies = currentState!.FailedCompanies
+            .Where(f => !idsToRemove.Contains(f.Id))
+            .ToList();
+
+        // Update the state with remaining failed companies
+        var updateExpression = remainingFailedCompanies.Count > 0
+            ? "SET #failedCompanies = :failedCompanies"
+            : "REMOVE #failedCompanies";
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                [KeyAttribute] = new AttributeValue { S = syncType }
+            },
+            UpdateExpression = updateExpression,
+            ExpressionAttributeNames = new Dictionary<string, string>
+            {
+                ["#failedCompanies"] = FailedCompaniesAttribute
+            }
+        };
+
+        if (remainingFailedCompanies.Count > 0)
+        {
+            var failedItems = remainingFailedCompanies.Select(f => new AttributeValue
+            {
+                M = new Dictionary<string, AttributeValue>
+                {
+                    [IdAttribute]           = new AttributeValue { S = f.Id },
+                    [CompanyNameAttribute]  = new AttributeValue { S = f.CompanyName },
+                    [ErrorMessageAttribute] = new AttributeValue { S = f.ErrorMessage }
+                }
+            }).ToList();
+
+            updateRequest.ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":failedCompanies"] = new AttributeValue { L = failedItems }
+            };
+        }
+
+        await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
+
+        logger.LogInformation("Removed {Count} failed company entries from DynamoDB for syncType={SyncType}. Remaining: {Remaining}.",
+            failedCompanyIds.Count, syncType, remainingFailedCompanies.Count);
     }
 }

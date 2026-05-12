@@ -149,4 +149,64 @@ public sealed class ConnectWiseService(
 
         return allCompanies;
     }
+
+    public async Task<IReadOnlyList<ConnectWiseCompany>> GetCompaniesByIdsAsync(
+        IReadOnlyList<int> companyIds, CancellationToken cancellationToken = default)
+    {
+        if (companyIds.Count == 0)
+        {
+            _logger.LogInformation("No company IDs provided for retrieval.");
+            return [];
+        }
+
+        var allCompanies = new List<ConnectWiseCompany>();
+        var page = 1;
+        var idsCondition = string.Join(" OR ", companyIds.Select(id => $"id = {id}"));
+        var condition = $"({idsCondition})";
+
+        _logger.LogInformation("Starting ConnectWise company fetch for {Count} specific company IDs", companyIds.Count);
+
+        while (true)
+        {
+            var relativeUrl = $"/company/companies" +
+                              $"?pageSize={_config.PageSize}&page={page}" +
+                              $"&conditions={Uri.EscapeDataString(condition)}" +
+                              $"&fields=id,identifier,name,status,type,addressLine1,addressLine2,city,state,zip,country,phoneNumber,faxNumber,website,invoiceCCEmailAddress,_info" +
+                              $"&orderBy=id asc";
+
+            _logger.LogDebug("Fetching ConnectWise companies by IDs page {Page}", page);
+
+            using var request = CreateRequest(HttpMethod.Get, relativeUrl);
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("ConnectWise API error on company IDs page {Page} — {StatusCode}: {Body}",
+                    page, response.StatusCode, errorBody);
+                response.EnsureSuccessStatusCode();
+            }
+
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var pageResults = await JsonSerializer.DeserializeAsync<List<ConnectWiseCompany>>(
+                stream, _jsonOptions, cancellationToken);
+
+            if (pageResults is null || pageResults.Count == 0)
+                break;
+
+            allCompanies.AddRange(pageResults);
+
+            _logger.LogDebug("Fetched {Count} companies on IDs page {Page}. Total so far: {Total}",
+                pageResults.Count, page, allCompanies.Count);
+
+            if (pageResults.Count < _config.PageSize)
+                break;
+
+            page++;
+        }
+
+        _logger.LogInformation("Completed ConnectWise company fetch by IDs. Total companies loaded: {Total}", allCompanies.Count);
+
+        return allCompanies;
+    }
 }

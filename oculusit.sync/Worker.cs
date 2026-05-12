@@ -23,28 +23,40 @@ public sealed class Worker(
             if (syncState is null)
             {
                 logger.LogInformation("No previous sync state found in DynamoDB. This is a fresh run.");
-                var syncedEntries = await orchestration.SyncCompaniesToKekaAsync(stoppingToken);
+                
+                var fullSyncState = await orchestration.SyncCompaniesToKekaAsync(stoppingToken);
 
-                await syncStateService.SaveAsync(new SyncState
-                {
-                    SyncType      = "Company",
-                    Companies     = syncedEntries,
-                    LastUpdatedAt = syncStartedAt
-                }, stoppingToken);
+                await syncStateService.SaveAsync(fullSyncState, stoppingToken);
 
-                logger.LogInformation("Sync state saved. {Count} company mappings recorded.", syncedEntries.Count);
+                logger.LogInformation("Sync state saved. {Count} company mappings recorded. {syncedCompanies} companied synced in Keka. {failedCompanies} companies failed to sync in keka.", fullSyncState.Companies.Count + fullSyncState.FailedCompanies.Count, fullSyncState.Companies.Count, fullSyncState.FailedCompanies.Count);
             }
             else
             {
                 logger.LogInformation("Incremental run. Last sync was at {LastUpdatedAt}.", syncState.LastUpdatedAt);
-                var newEntries = await orchestration.SyncCompaniesIncrementalAsync(syncState, stoppingToken);
 
-                await syncStateService.AppendCompaniesAsync("Company", newEntries, syncStartedAt, stoppingToken);
+                var incrementalSyncState = await orchestration.SyncCompaniesIncrementalAsync(syncState, stoppingToken);
+                await syncStateService.AppendSyncStateAsync("Company", incrementalSyncState, syncStartedAt, stoppingToken);
+                logger.LogInformation("Incremental sync state updated. {Count} new company mappings appended. {updatedCompanies} companies updated successfully. {failedCompanies} companies failed to sync in keka.", incrementalSyncState.Companies.Count + incrementalSyncState.FailedCompanies.Count, incrementalSyncState.Companies.Count, incrementalSyncState.FailedCompanies.Count);
 
-                logger.LogInformation("Incremental sync state updated. {Count} new company mappings appended.", newEntries.Count);
+                logger.LogInformation("Retry Synchronizing of Failed Companies.");
+                var retrySyncedEntries = await orchestration.RetryFailedCompaniesAsync(syncState, stoppingToken);
+                if (retrySyncedEntries.Count > 0)
+                {
+                    await syncStateService.AppendSyncStateAsync("Company", new SyncState
+                    {
+                        SyncType = "Company",
+                        Companies = retrySyncedEntries,
+                        FailedCompanies = []
+                    }, syncStartedAt, stoppingToken);
+
+                    var retriedIds = retrySyncedEntries.Select(x => x.Id).ToList();
+                    await syncStateService.RemoveFailedCompaniesAsync("Company", retriedIds, stoppingToken);
+                    logger.LogInformation("Removed {Count} successfully retried companies from the failed list in DynamoDB.", retriedIds.Count);
+                }
+
+                logger.LogInformation("Failed companies sync retry completed. {Count} new company mappings appended. {retried} companies synced in keka. {failedCompanies} companies still failed to sync in keka.", retrySyncedEntries.Count, retrySyncedEntries.Count, syncState.FailedCompanies.Count);
             }
-            
-                      
+
             logger.LogInformation("Sync complete. Worker shutting down.");
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

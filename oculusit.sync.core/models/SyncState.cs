@@ -10,6 +10,16 @@ public sealed class SyncState
 
     /// <summary>UTC timestamp of the last successful sync completion.</summary>
     public DateTime? LastUpdatedAt { get; init; }
+
+    /// <summary>Failed company sync attempts with error messages.</summary>
+    public IReadOnlyList<FailedCompanyEntry> FailedCompanies { get; init; } = [];
+}
+
+public class FailedCompanyEntry
+{
+    public string Id { get; init; } = string.Empty;
+    public string CompanyName { get; init; } = string.Empty;
+    public string ErrorMessage { get; init; } = string.Empty;
 }
 
 /// <summary>Records the mapping between a ConnectWise company ID and its Keka client ID.</summary>
