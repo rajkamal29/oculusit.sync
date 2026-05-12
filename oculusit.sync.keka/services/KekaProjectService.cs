@@ -167,4 +167,45 @@ public sealed class KekaProjectService(
 
         _logger.LogInformation("Successfully updated Keka project {ProjectId}.", projectId);
     }
+
+    public async Task<string> CreateTaskAsync(KekaTaskRequest request, CancellationToken cancellationToken = default)
+    {
+        await SetAuthHeaderAsync(cancellationToken);
+
+        var uri = BuildUri("/psa/projects/tasks");
+        _logger.LogDebug("Creating Keka task '{Name}' for project {ProjectId}.", request.Name, request.ProjectId);
+
+        var response = await _httpClient.PostAsJsonAsync(uri, request, _jsonOptions, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            _logger.LogWarning("Received 401 creating Keka task '{Name}'. Refreshing token.", request.Name);
+            await RefreshAuthHeaderAsync(cancellationToken);
+            response = await _httpClient.PostAsJsonAsync(uri, request, _jsonOptions, cancellationToken);
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("Failed to create Keka task '{Name}' for project {ProjectId}. StatusCode: {StatusCode}, Body: {Body}",
+                request.Name, request.ProjectId, response.StatusCode, errorBody);
+            throw new HttpRequestException(
+                $"Keka POST /psa/projects/tasks failed ({(int)response.StatusCode}): {errorBody}",
+                null, response.StatusCode);
+        }
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<KekaCreateTaskResponse>(_jsonOptions, cancellationToken);
+
+        if (envelope is null || !envelope.Succeeded || string.IsNullOrEmpty(envelope.Data))
+        {
+            var errors = envelope?.Errors is { Count: > 0 } e ? string.Join(", ", e) : "none";
+            throw new InvalidOperationException(
+                $"Keka create task '{request.Name}' for project '{request.ProjectId}' failed. Message: {envelope?.Message}. Errors: {errors}");
+        }
+
+        _logger.LogInformation("Successfully created Keka task {TaskId} ('{Name}') for project {ProjectId}.",
+            envelope.Data, request.Name, request.ProjectId);
+        return envelope.Data;
+    }
 }

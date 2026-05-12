@@ -42,6 +42,18 @@ public sealed class SyncedProjectEntry
 
     /// <summary>Keka project ID — populated once Keka project sync is implemented.</summary>
     public string? KekaProjectId { get; init; }
+
+    /// <summary>
+    /// Keka task IDs keyed by short code.
+    /// Keys: BCH, NBCH, BST, NBST, BPT, NBPT.
+    /// </summary>
+    public Dictionary<string, string> KekaTaskIds { get; init; } = [];
+
+    /// <summary>
+    /// Short-code keys of tasks that failed to be created on the last run.
+    /// These will be retried on the next update pass.
+    /// </summary>
+    public List<string> FailedTaskKeys { get; init; } = [];
 }
 
 /// <summary>Records a ConnectWise project that failed to sync to Keka.</summary>

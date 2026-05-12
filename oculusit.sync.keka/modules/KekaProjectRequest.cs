@@ -54,3 +54,12 @@ public sealed class KekaProjectUpdateRequest
     [JsonPropertyName("isBillable")]
     public bool IsBillable { get; init; }
 }
+
+public sealed class KekaTaskRequest
+{
+    [JsonPropertyName("projectId")]
+    public string ProjectId { get; init; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = string.Empty;
+}

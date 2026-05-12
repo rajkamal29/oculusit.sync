@@ -24,6 +24,8 @@ public sealed class DynamoDbSyncStateService(
     private const string ClientIdAttribute         = "clientId";
     private const string KekaClientIdAttribute     = "kekaClientId";
     private const string KekaProjectIdAttribute    = "kekaProjectId";
+    private const string KekaTaskIdsAttribute      = "kekaTaskIds";
+    private const string FailedTaskKeysAttribute   = "failedTaskKeys";
     private const string NameAttribute             = "name";
     private const string ErrorMessageAttribute     = "errorMessage";
     private const string ValueAttribute            = "value";
@@ -84,11 +86,25 @@ public sealed class DynamoDbSyncStateService(
                 entry.M.TryGetValue(IdAttribute, out var idAttr);
                 entry.M.TryGetValue(KekaClientIdAttribute, out var kekaClientIdAttr);
                 entry.M.TryGetValue(KekaProjectIdAttribute, out var kekaProjectIdAttr);
+
+                var taskIds = new Dictionary<string, string>();
+                if (entry.M.TryGetValue(KekaTaskIdsAttribute, out var taskIdsAttr) && taskIdsAttr.M is { Count: > 0 })
+                {
+                    foreach (var kv in taskIdsAttr.M)
+                        taskIds[kv.Key] = kv.Value.S ?? string.Empty;
+                }
+
+                var failedTaskKeys = new List<string>();
+                if (entry.M.TryGetValue(FailedTaskKeysAttribute, out var failedTaskKeysAttr) && failedTaskKeysAttr.SS is { Count: > 0 })
+                    failedTaskKeys.AddRange(failedTaskKeysAttr.SS);
+
                 projects.Add(new SyncedProjectEntry
                 {
-                    Id            = idAttr?.S ?? string.Empty,
-                    KekaClientId  = kekaClientIdAttr?.S,
-                    KekaProjectId = kekaProjectIdAttr?.S
+                    Id             = idAttr?.S ?? string.Empty,
+                    KekaClientId   = kekaClientIdAttr?.S,
+                    KekaProjectId  = kekaProjectIdAttr?.S,
+                    KekaTaskIds    = taskIds,
+                    FailedTaskKeys = failedTaskKeys
                 });
             }
         }
@@ -135,14 +151,29 @@ public sealed class DynamoDbSyncStateService(
         {
             item[ProjectsAttribute] = new AttributeValue
             {
-                L = state.Projects.Select(p => new AttributeValue
+                L = state.Projects.Select(p =>
                 {
-                    M = new Dictionary<string, AttributeValue>
+                    var m = new Dictionary<string, AttributeValue>
                     {
-                        [IdAttribute]           = new AttributeValue { S = p.Id },
-                        [KekaClientIdAttribute] = new AttributeValue { S = p.KekaClientId ?? string.Empty },
-                        [KekaProjectIdAttribute]= new AttributeValue { S = p.KekaProjectId ?? string.Empty }
+                        [IdAttribute]            = new AttributeValue { S = p.Id },
+                        [KekaClientIdAttribute]  = new AttributeValue { S = p.KekaClientId ?? string.Empty },
+                        [KekaProjectIdAttribute] = new AttributeValue { S = p.KekaProjectId ?? string.Empty }
+                    };
+
+                    if (p.KekaTaskIds.Count > 0)
+                    {
+                        m[KekaTaskIdsAttribute] = new AttributeValue
+                        {
+                            M = p.KekaTaskIds.ToDictionary(
+                                kv => kv.Key,
+                                kv => new AttributeValue { S = kv.Value })
+                        };
                     }
+
+                    if (p.FailedTaskKeys.Count > 0)
+                        m[FailedTaskKeysAttribute] = new AttributeValue { SS = [.. p.FailedTaskKeys] };
+
+                    return new AttributeValue { M = m };
                 }).ToList()
             };
         }
@@ -245,14 +276,29 @@ public sealed class DynamoDbSyncStateService(
     {
         logger.LogDebug("Appending {Count} project entries to DynamoDB for syncType={SyncType}.", newEntries.Count, syncType);
 
-        var newItems = newEntries.Select(p => new AttributeValue
+        var newItems = newEntries.Select(p =>
         {
-            M = new Dictionary<string, AttributeValue>
+            var m = new Dictionary<string, AttributeValue>
             {
-                [IdAttribute]           = new AttributeValue { S = p.Id },
-                [KekaClientIdAttribute] = new AttributeValue { S = p.KekaClientId ?? string.Empty },
-                [KekaProjectIdAttribute]= new AttributeValue { S = p.KekaProjectId ?? string.Empty }
+                [IdAttribute]            = new AttributeValue { S = p.Id },
+                [KekaClientIdAttribute]  = new AttributeValue { S = p.KekaClientId ?? string.Empty },
+                [KekaProjectIdAttribute] = new AttributeValue { S = p.KekaProjectId ?? string.Empty }
+            };
+
+            if (p.KekaTaskIds.Count > 0)
+            {
+                m[KekaTaskIdsAttribute] = new AttributeValue
+                {
+                    M = p.KekaTaskIds.ToDictionary(
+                        kv => kv.Key,
+                        kv => new AttributeValue { S = kv.Value })
+                };
             }
+
+            if (p.FailedTaskKeys.Count > 0)
+                m[FailedTaskKeysAttribute] = new AttributeValue { SS = [.. p.FailedTaskKeys] };
+
+            return new AttributeValue { M = m };
         }).ToList();
 
         var updateRequest = new UpdateItemRequest

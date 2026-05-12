@@ -19,4 +19,9 @@ public interface IKekaProjectService
     /// Updates an existing Keka PSA project by Keka project ID.
     /// </summary>
     Task UpdateProjectAsync(string projectId, KekaProjectUpdateRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a task under a Keka PSA project. Returns the newly created Keka task ID.
+    /// </summary>
+    Task<string> CreateTaskAsync(KekaTaskRequest request, CancellationToken cancellationToken = default);
 }

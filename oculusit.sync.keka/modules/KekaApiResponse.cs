@@ -101,3 +101,22 @@ internal sealed class KekaUpdateProjectResponse
     [JsonPropertyName("data")]
     public bool Data { get; init; }
 }
+
+/// <summary>
+/// Wraps the Keka API response for project task creation.
+/// data contains the newly created Keka task ID.
+/// </summary>
+internal sealed class KekaCreateTaskResponse
+{
+    [JsonPropertyName("succeeded")]
+    public bool Succeeded { get; init; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; init; }
+
+    [JsonPropertyName("errors")]
+    public IReadOnlyList<string> Errors { get; init; } = [];
+
+    [JsonPropertyName("data")]
+    public string? Data { get; init; }
+}
