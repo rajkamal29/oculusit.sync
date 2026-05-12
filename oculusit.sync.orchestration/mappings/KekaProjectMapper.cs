@@ -1,71 +1,113 @@
 using oculusit.sync.connectwise.modules;
+using oculusit.sync.core.models;
 using oculusit.sync.keka.modules;
 
 namespace oculusit.sync.orchestration.mappings;
 
 public static class KekaProjectMapper
 {
-    // Minimum date accepted by SQL Server datetime columns (1753-01-01). Used as StartDate fallback.
-    private static readonly DateTime SqlMinDate = new(1753, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
-    // Maximum date accepted by SQL Server datetime columns (9999-12-31). Used as EndDate fallback.
-    private static readonly DateTime SqlMaxDate = new(9999, 12, 31, 0, 0, 0, DateTimeKind.Utc);
-
     // Maximum length of Keka's Group.Description column.
     private const int MaxDescriptionLength = 100;
 
+    // Default Keka status when no metadata mapping is found: 0 = InProgress.
+    private const int DefaultStatus = 0;
+
     public static KekaProjectRequest MapToKekaProjectRequest(
         ConnectWiseProject project,
-        string kekaClientId)
+        string kekaClientId,
+        IReadOnlyDictionary<string, int> statusMapping)
     {
+        var (startDate, endDate) = ValidateDates(project);
+
         return new KekaProjectRequest
         {
             ClientId    = kekaClientId,
             Name        = project.Name,
             Description = TruncateDescription(project.Description),
             Code        = project.Id.ToString(),
-            Status      = MapStatus(project.Status?.Name),
-            StartDate   = project.ActualStart ?? SqlMinDate,
-            EndDate     = project.ActualEnd   ?? SqlMaxDate,
+            Status      = MapStatus(project.Status?.Name, statusMapping),
+            StartDate   = startDate,
+            EndDate     = endDate,
             IsBillable  = true
         };
     }
 
-    public static KekaProjectUpdateRequest MapToKekaProjectUpdateRequest(ConnectWiseProject project)
+    public static KekaProjectUpdateRequest MapToKekaProjectUpdateRequest(
+        ConnectWiseProject project,
+        IReadOnlyDictionary<string, int> statusMapping)
     {
+        var (startDate, endDate) = ValidateDates(project);
+
         return new KekaProjectUpdateRequest
         {
             Name        = project.Name,
             Description = TruncateDescription(project.Description),
             Code        = project.Id.ToString(),
-            Status      = MapStatus(project.Status?.Name),
-            StartDate   = project.ActualStart ?? SqlMinDate,
-            EndDate     = project.ActualEnd   ?? SqlMaxDate,
+            Status      = MapStatus(project.Status?.Name, statusMapping),
+            StartDate   = startDate,
+            EndDate     = endDate,
             IsBillable  = true
         };
     }
 
     /// <summary>
-    /// Maps a ConnectWise project status name to the corresponding Keka numeric status value.
-    /// 0 = InProgress, 1 = Completed, 2 = Cancelled, 3 = Not Yet Started, 4 = On Hold.
-    /// Defaults to 0 (InProgress) for any unrecognised status.
+    /// Validates that both <see cref="ConnectWiseProject.ActualStart"/> and
+    /// <see cref="ConnectWiseProject.ActualEnd"/> are present.
+    /// Throws <see cref="InvalidOperationException"/> with a descriptive message when either is null.
     /// </summary>
-    internal static int MapStatus(string? cwStatus)
+    /// <returns>A tuple of (startDate, endDate) when both values are valid.</returns>
+    private static (DateTime startDate, DateTime endDate) ValidateDates(ConnectWiseProject project)
+    {
+        var invalidFields = new List<string>();
+
+        if (project.ActualStart is null)
+            invalidFields.Add("ActualStart");
+
+        if (project.ActualEnd is null)
+            invalidFields.Add("ActualEnd");
+
+        if (invalidFields.Count > 0)
+            throw new InvalidOperationException(
+                $"Project {project.Id} - '{project.Name}' has an invalid or missing date field(s): {string.Join(", ", invalidFields)}.");
+
+        return (project.ActualStart!.Value, project.ActualEnd!.Value);
+    }
+
+    /// <summary>
+    /// Builds a case-insensitive status lookup dictionary from the persisted metadata entries.
+    /// Key = ConnectWise status name (Value field), mapped value = Keka numeric status (MappedValue field).
+    /// Entries with a missing or non-numeric MappedValue are skipped.
+    /// </summary>
+    public static IReadOnlyDictionary<string, int> BuildStatusMapping(
+        IReadOnlyList<ProjectStatusEntry> projectStatuses)
+    {
+        var dict = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in projectStatuses)
+        {
+            if (!string.IsNullOrWhiteSpace(entry.Value)
+                && int.TryParse(entry.MappedValue, out var numeric))
+            {
+                dict.TryAdd(entry.Value.Trim(), numeric);
+            }
+        }
+
+        return dict;
+    }
+
+    /// <summary>
+    /// Resolves the Keka numeric status by looking up the ConnectWise status name in the
+    /// metadata-derived dictionary. Falls back to <see cref="DefaultStatus"/> (InProgress = 0)
+    /// when the status is absent or unmapped.
+    /// </summary>
+    private static int MapStatus(string? cwStatus, IReadOnlyDictionary<string, int> statusMapping)
     {
         if (string.IsNullOrWhiteSpace(cwStatus))
-            return 0;
+            return DefaultStatus;
 
-        return cwStatus.Trim().ToLowerInvariant() switch
-        {
-            "completed"                => 1,
-            "closed"                   => 1,
-            "closed - not implemented" => 1,
-            "not started"              => 3,
-            "new"                      => 3,
-            "terminated"               => 2,
-            "on-hold"                  => 4,
-            _                          => 0
-        };
+        return statusMapping.TryGetValue(cwStatus.Trim(), out var mapped)
+            ? mapped
+            : DefaultStatus;
     }
 
     /// <summary>
@@ -82,7 +124,4 @@ public static class KekaProjectMapper
             ? value
             : value[..MaxDescriptionLength];
     }
-
-    private static string? NullIfEmpty(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value;
 }

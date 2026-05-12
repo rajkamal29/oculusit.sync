@@ -18,4 +18,10 @@ public interface ISyncStateService
 
     /// <summary>Replaces the FailedProjects list with the provided entries so the latest failure set is always current.</summary>
     Task SaveFailedProjectsAsync(string syncType, IReadOnlyList<FailedProjectEntry> failedEntries, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fully replaces the ProjectStatuses metadata list each run.
+    /// New entries have an empty MappedValue; existing MappedValues are preserved on update.
+    /// </summary>
+    Task SaveMetadataAsync(IReadOnlyList<ProjectStatusEntry> entries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
 }

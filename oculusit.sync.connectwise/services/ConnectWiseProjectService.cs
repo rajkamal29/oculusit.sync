@@ -53,4 +53,22 @@ public sealed class ConnectWiseProjectService(
 
         return results;
     }
+
+    public async Task<IReadOnlyList<ConnectWiseProjectStatus>> GetAllProjectStatusesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation("Fetching all ConnectWise project statuses.");
+
+        var results = await FetchPagedAsync<ConnectWiseProjectStatus>(
+            relativeUrlBase: "/project/statuses",
+            fields: "id,name",
+            orderBy: "id asc",
+            conditions: null,
+            pageSize: Config.PageSize,
+            cancellationToken: cancellationToken);
+
+        logger.LogInformation("Fetched {Count} ConnectWise project statuses.", results.Count);
+
+        return results;
+    }
 }

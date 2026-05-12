@@ -5,6 +5,7 @@ namespace oculusit.sync.core.models;
 /// </summary>
 public static class SyncTypes
 {
-    public const string Company = "Company";
-    public const string Project = "Project";
+    public const string Company  = "Company";
+    public const string Project  = "Project";
+    public const string Metadata = "Metadata";
 }

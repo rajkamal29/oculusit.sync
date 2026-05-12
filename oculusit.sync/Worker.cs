@@ -8,6 +8,7 @@ public sealed partial class Worker(
     IHostApplicationLifetime lifetime,
     ICompanyOrchestrationService companyOrchestration,
     IProjectOrchestrationService projectOrchestration,
+    IMetadataOrchestrationService metadataOrchestration,
     ISyncStateService syncStateService) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -16,10 +17,9 @@ public sealed partial class Worker(
         {
             logger.LogInformation("Worker started. Beginning ConnectWise to Keka sync.");
 
-            // Capture start time before any data is fetched so mid-run changes are
-            // included in the next run's window.
             var syncStartedAt = DateTime.UtcNow;
 
+            await SyncMetadataAsync(syncStartedAt, stoppingToken);
             await SyncCompaniesAsync(syncStartedAt, stoppingToken);
             await SyncProjectsAsync(syncStartedAt, stoppingToken);
 

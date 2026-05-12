@@ -14,13 +14,16 @@ public sealed partial class Worker
             return;
         }
 
+        // Metadata sync state provides the project status mappings (value → numeric mappedValue).
+        var metadataSyncState = await syncStateService.GetAsync(SyncTypes.Metadata, stoppingToken);
+
         var projectSyncState = await syncStateService.GetAsync(SyncTypes.Project, stoppingToken);
 
         if (projectSyncState is null)
         {
             logger.LogInformation("No previous project sync state found. Running full project sync.");
 
-            var result = await projectOrchestration.SyncProjectsAsync(companySyncState, stoppingToken);
+            var result = await projectOrchestration.SyncProjectsAsync(companySyncState, metadataSyncState, stoppingToken);
 
             await syncStateService.SaveAsync(new SyncState
             {
@@ -37,7 +40,7 @@ public sealed partial class Worker
         {
             logger.LogInformation("Incremental project sync. Last sync was at {LastUpdatedAt}.", projectSyncState.LastUpdatedAt);
 
-            var result = await projectOrchestration.SyncProjectsIncrementalAsync(projectSyncState, companySyncState, stoppingToken);
+            var result = await projectOrchestration.SyncProjectsIncrementalAsync(projectSyncState, companySyncState, metadataSyncState, stoppingToken);
 
             await syncStateService.AppendProjectsAsync(SyncTypes.Project, result.SyncedEntries, syncStartedAt, stoppingToken);
 

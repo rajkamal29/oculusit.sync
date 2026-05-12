@@ -2,7 +2,7 @@ namespace oculusit.sync.core.models;
 
 public sealed class SyncState
 {
-    /// <summary>Partition key — identifies the type of sync (e.g. "Company", "Project").</summary>
+    /// <summary>Partition key — identifies the type of sync (e.g. "Company", "Project", "Metadata").</summary>
     public string SyncType { get; init; } = string.Empty;
 
     /// <summary>Company-to-Keka client mappings captured during the sync run.</summary>
@@ -13,6 +13,9 @@ public sealed class SyncState
 
     /// <summary>Projects that failed to sync during the most recent run.</summary>
     public IReadOnlyList<FailedProjectEntry> FailedProjects { get; init; } = [];
+
+    /// <summary>Project status metadata entries — full replace on every run.</summary>
+    public IReadOnlyList<ProjectStatusEntry> ProjectStatuses { get; init; } = [];
 
     /// <summary>UTC timestamp of the last successful sync completion.</summary>
     public DateTime? LastUpdatedAt { get; init; }
@@ -52,5 +55,18 @@ public sealed class FailedProjectEntry
 
     /// <summary>Exception message that caused the failure.</summary>
     public string ErrorMessage { get; init; } = string.Empty;
+}
+
+/// <summary>Metadata entry for a ConnectWise project status and its optional Keka mapped value.</summary>
+public sealed class ProjectStatusEntry
+{
+    /// <summary>ConnectWise project status ID.</summary>
+    public string Id { get; init; } = string.Empty;
+
+    /// <summary>ConnectWise project status name.</summary>
+    public string Value { get; init; } = string.Empty;
+
+    /// <summary>Mapped Keka value — set manually after initial insert; preserved on updates.</summary>
+    public string MappedValue { get; init; } = string.Empty;
 }
 

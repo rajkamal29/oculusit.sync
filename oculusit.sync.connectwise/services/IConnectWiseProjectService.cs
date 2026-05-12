@@ -15,4 +15,9 @@ public interface IConnectWiseProjectService
     /// ordered by lastUpdated ascending.
     /// </summary>
     Task<IReadOnlyList<ConnectWiseProject>> GetProjectsSinceAsync(DateTime since, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches all project statuses from ConnectWise (/project/statuses).
+    /// </summary>
+    Task<IReadOnlyList<ConnectWiseProjectStatus>> GetAllProjectStatusesAsync(CancellationToken cancellationToken = default);
 }

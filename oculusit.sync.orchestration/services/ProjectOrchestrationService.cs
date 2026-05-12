@@ -13,6 +13,7 @@ public sealed class ProjectOrchestrationService(
 {
     public async Task<ProjectSyncResult> SyncProjectsAsync(
         SyncState companySyncState,
+        SyncState? metadataSyncState,
         CancellationToken cancellationToken = default)
     {
         var projects = await connectWiseProjectService.GetAllProjectsAsync(cancellationToken);
@@ -20,6 +21,9 @@ public sealed class ProjectOrchestrationService(
 
         var kekaClientIdByCompanyId = companySyncState.Companies
             .ToDictionary(e => e.Id, e => e.ClientId);
+
+        var statusMapping = KekaProjectMapper.BuildStatusMapping(metadataSyncState?.ProjectStatuses ?? []);
+        logger.LogInformation("Loaded {Count} project status mappings from metadata.", statusMapping.Count);
 
         // Fetch all existing Keka projects and index by Code (ConnectWise project ID).
         var allKekaProjects = await kekaProjectService.GetAllProjectsAsync(cancellationToken);
@@ -54,7 +58,7 @@ public sealed class ProjectOrchestrationService(
                 if (!kekaProjectsByCode.TryGetValue(project.Id.ToString(), out var existing))
                 {
                     // New project — create in Keka.
-                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId);
+                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, statusMapping);
                     var kekaProjectId = await kekaProjectService.CreateProjectAsync(request, cancellationToken);
                     logger.LogInformation("Created Keka project {KekaProjectId} for ConnectWise project {ProjectId} - {ProjectName}.",
                         kekaProjectId, project.Id, project.Name);
@@ -69,7 +73,7 @@ public sealed class ProjectOrchestrationService(
                 else
                 {
                     // Existing project — update in Keka.
-                    var updateRequest = KekaProjectMapper.MapToKekaProjectUpdateRequest(project);
+                    var updateRequest = KekaProjectMapper.MapToKekaProjectUpdateRequest(project, statusMapping);
                     await kekaProjectService.UpdateProjectAsync(existing.Id, updateRequest, cancellationToken);
                     logger.LogInformation("Updated Keka project {KekaProjectId} for ConnectWise project {ProjectId} - {ProjectName}.",
                         existing.Id, project.Id, project.Name);
@@ -106,6 +110,7 @@ public sealed class ProjectOrchestrationService(
     public async Task<ProjectSyncResult> SyncProjectsIncrementalAsync(
         SyncState projectSyncState,
         SyncState companySyncState,
+        SyncState? metadataSyncState,
         CancellationToken cancellationToken = default)
     {
         var since = projectSyncState.LastUpdatedAt!.Value;
@@ -122,6 +127,9 @@ public sealed class ProjectOrchestrationService(
 
         var kekaClientIdByCompanyId = companySyncState.Companies
             .ToDictionary(e => e.Id, e => e.ClientId);
+
+        var statusMapping = KekaProjectMapper.BuildStatusMapping(metadataSyncState?.ProjectStatuses ?? []);
+        logger.LogInformation("Loaded {Count} project status mappings from metadata.", statusMapping.Count);
 
         var created = 0;
         var updated = 0;
@@ -151,7 +159,7 @@ public sealed class ProjectOrchestrationService(
                     && !string.IsNullOrEmpty(existingKekaProjectId))
                 {
                     // Known project — update in Keka.
-                    var updateRequest = KekaProjectMapper.MapToKekaProjectUpdateRequest(project);
+                    var updateRequest = KekaProjectMapper.MapToKekaProjectUpdateRequest(project, statusMapping);
                     await kekaProjectService.UpdateProjectAsync(existingKekaProjectId, updateRequest, cancellationToken);
                     logger.LogInformation(
                         "Incremental: Updated Keka project {KekaProjectId} for ConnectWise project {ProjectId} - {ProjectName}.",
@@ -161,7 +169,7 @@ public sealed class ProjectOrchestrationService(
                 else
                 {
                     // New project — create in Keka and record the mapping.
-                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId);
+                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, statusMapping);
                     var kekaProjectId = await kekaProjectService.CreateProjectAsync(request, cancellationToken);
                     logger.LogInformation(
                         "Incremental: Created Keka project {KekaProjectId} for ConnectWise project {ProjectId} - {ProjectName}.",

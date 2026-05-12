@@ -19,12 +19,15 @@ public sealed class DynamoDbSyncStateService(
     private const string CompaniesAttribute        = "companies";
     private const string ProjectsAttribute         = "projects";
     private const string FailedProjectsAttribute   = "failedProjects";
+    private const string ProjectStatusesAttribute  = "projectStatuses";
     private const string IdAttribute               = "id";
     private const string ClientIdAttribute         = "clientId";
     private const string KekaClientIdAttribute     = "kekaClientId";
     private const string KekaProjectIdAttribute    = "kekaProjectId";
     private const string NameAttribute             = "name";
     private const string ErrorMessageAttribute     = "errorMessage";
+    private const string ValueAttribute            = "value";
+    private const string MappedValueAttribute      = "mappedValue";
 
     private readonly string _tableName = options.Value.TableName;
 
@@ -96,7 +99,8 @@ public sealed class DynamoDbSyncStateService(
             LastUpdatedAt  = lastUpdatedAt,
             Companies      = companies,
             Projects       = projects,
-            FailedProjects = await ReadFailedProjectsAsync(response.Item)
+            FailedProjects = await ReadFailedProjectsAsync(response.Item),
+            ProjectStatuses = ReadProjectStatuses(response.Item)
         };
     }
 
@@ -154,6 +158,22 @@ public sealed class DynamoDbSyncStateService(
                         [IdAttribute]           = new AttributeValue { S = p.Id },
                         [NameAttribute]         = new AttributeValue { S = p.Name },
                         [ErrorMessageAttribute] = new AttributeValue { S = p.ErrorMessage }
+                    }
+                }).ToList()
+            };
+        }
+
+        if (state.ProjectStatuses.Count > 0)
+        {
+            item[ProjectStatusesAttribute] = new AttributeValue
+            {
+                L = state.ProjectStatuses.Select(s => new AttributeValue
+                {
+                    M = new Dictionary<string, AttributeValue>
+                    {
+                        [IdAttribute]          = new AttributeValue { S = s.Id },
+                        [ValueAttribute]       = new AttributeValue { S = s.Value },
+                        [MappedValueAttribute] = new AttributeValue { S = s.MappedValue }
                     }
                 }).ToList()
             };
@@ -301,6 +321,74 @@ public sealed class DynamoDbSyncStateService(
         await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
 
         logger.LogInformation("Saved {Count} failed project entries for syncType={SyncType}.", failedEntries.Count, syncType);
+    }
+
+    public async Task SaveMetadataAsync(
+        IReadOnlyList<ProjectStatusEntry> entries,
+        DateTime lastUpdatedAt,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogDebug("Saving {Count} project status metadata entries to DynamoDB.", entries.Count);
+
+        var statusItems = entries.Select(s => new AttributeValue
+        {
+            M = new Dictionary<string, AttributeValue>
+            {
+                [IdAttribute]          = new AttributeValue { S = s.Id },
+                [ValueAttribute]       = new AttributeValue { S = s.Value },
+                [MappedValueAttribute] = new AttributeValue { S = s.MappedValue }
+            }
+        }).ToList();
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.Metadata }
+            },
+            // Full replace every run — merging of MappedValue is handled in orchestration before this call.
+            UpdateExpression = "SET #statuses = :statuses, #lastUpdatedAt = :lastUpdatedAt",
+            ExpressionAttributeNames = new Dictionary<string, string>
+            {
+                ["#statuses"]      = ProjectStatusesAttribute,
+                ["#lastUpdatedAt"] = LastUpdatedAtAttribute
+            },
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":statuses"]      = new AttributeValue { L = statusItems },
+                [":lastUpdatedAt"] = new AttributeValue { S = lastUpdatedAt.ToString("o") }
+            }
+        };
+
+        await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
+
+        logger.LogInformation("Saved {Count} project status metadata entries.", entries.Count);
+    }
+
+    private static IReadOnlyList<ProjectStatusEntry> ReadProjectStatuses(
+        Dictionary<string, AttributeValue> item)
+    {
+        var statuses = new List<ProjectStatusEntry>();
+
+        if (!item.TryGetValue(ProjectStatusesAttribute, out var attr) || attr.L is not { Count: > 0 })
+            return statuses;
+
+        foreach (var entry in attr.L)
+        {
+            if (entry.M is null) continue;
+            entry.M.TryGetValue(IdAttribute, out var idAttr);
+            entry.M.TryGetValue(ValueAttribute, out var valueAttr);
+            entry.M.TryGetValue(MappedValueAttribute, out var mappedAttr);
+            statuses.Add(new ProjectStatusEntry
+            {
+                Id           = idAttr?.S ?? string.Empty,
+                Value        = valueAttr?.S ?? string.Empty,
+                MappedValue  = mappedAttr?.S ?? string.Empty
+            });
+        }
+
+        return statuses;
     }
 
     private static Task<IReadOnlyList<FailedProjectEntry>> ReadFailedProjectsAsync(
