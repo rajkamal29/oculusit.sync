@@ -8,7 +8,7 @@ public sealed class MetadataOrchestrationService(
     IConnectWiseProjectService connectWiseProjectService,
     ILogger<MetadataOrchestrationService> logger) : IMetadataOrchestrationService
 {
-    public async Task<IReadOnlyList<ProjectStatusEntry>> SyncProjectStatusesAsync(
+    public async Task<MetadataSyncResult> SyncProjectStatusesAsync(
         IReadOnlyList<ProjectStatusEntry> existing,
         CancellationToken cancellationToken = default)
     {
@@ -16,10 +16,10 @@ public sealed class MetadataOrchestrationService(
 
         logger.LogInformation("Fetched {Count} project statuses from ConnectWise.", cwStatuses.Count);
 
-        // Index existing entries by ID so we can preserve their MappedValue on update.
+        // Index existing entries by ID so we can preserve MappedValue and detect name changes.
         var existingById = existing.ToDictionary(e => e.Id);
 
-        // Incoming IDs — anything not in this set will be deleted (simply not included in output).
+        // IDs coming from ConnectWise — anything not in this set is considered deleted.
         var incomingIds = cwStatuses.Select(s => s.Id.ToString()).ToHashSet();
 
         var deleted = existingById.Keys.Count(k => !incomingIds.Contains(k));
@@ -27,8 +27,6 @@ public sealed class MetadataOrchestrationService(
         var merged = cwStatuses.Select(s =>
         {
             var id = s.Id.ToString();
-
-            // Preserve MappedValue if the entry already exists; leave empty for new entries.
             var mappedValue = existingById.TryGetValue(id, out var prev) ? prev.MappedValue : string.Empty;
 
             return new ProjectStatusEntry
@@ -40,12 +38,22 @@ public sealed class MetadataOrchestrationService(
         }).ToList();
 
         var added   = merged.Count(e => !existingById.ContainsKey(e.Id));
-        var updated = merged.Count(e => existingById.TryGetValue(e.Id, out var prev) && prev.Value != e.Value);
+        var updated = merged.Count(e =>
+            existingById.TryGetValue(e.Id, out var prev) && prev.Value != e.Value);
+
+        var hasChanges = added > 0 || updated > 0 || deleted > 0;
 
         logger.LogInformation(
-            "Project status metadata sync: Added={Added}, Updated={Updated}, Deleted={Deleted}, Total={Total}.",
-            added, updated, deleted, merged.Count);
+            "Project status metadata comparison: Added={Added}, Updated={Updated}, Deleted={Deleted}, Total={Total}. HasChanges={HasChanges}.",
+            added, updated, deleted, merged.Count, hasChanges);
 
-        return merged;
+        return new MetadataSyncResult
+        {
+            Entries    = merged,
+            HasChanges = hasChanges,
+            Added      = added,
+            Updated    = updated,
+            Deleted    = deleted
+        };
     }
 }

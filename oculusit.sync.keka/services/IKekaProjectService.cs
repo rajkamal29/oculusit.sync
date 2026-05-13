@@ -23,5 +23,11 @@ public interface IKekaProjectService
     /// <summary>
     /// Creates a task under a Keka PSA project. Returns the newly created Keka task ID.
     /// </summary>
-    Task<string> CreateTaskAsync(KekaTaskRequest request, CancellationToken cancellationToken = default);
+    Task<string> CreateTaskAsync(string projectId, KekaTaskRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns all tasks that already exist under the given Keka project ID.
+    /// Used to skip creation of tasks whose name already exists in Keka.
+    /// </summary>
+    Task<IReadOnlyList<KekaTask>> GetTasksByProjectAsync(string projectId, CancellationToken cancellationToken = default);
 }

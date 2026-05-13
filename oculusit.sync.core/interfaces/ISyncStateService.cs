@@ -24,4 +24,10 @@ public interface ISyncStateService
     /// New entries have an empty MappedValue; existing MappedValues are preserved on update.
     /// </summary>
     Task SaveMetadataAsync(IReadOnlyList<ProjectStatusEntry> entries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Persists a metadata sync failure against the Metadata record.
+    /// Pass null to clear the failure (i.e. reset after a successful run).
+    /// </summary>
+    Task SaveFailedMetadataAsync(FailedMetadataEntry? failure, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
 }

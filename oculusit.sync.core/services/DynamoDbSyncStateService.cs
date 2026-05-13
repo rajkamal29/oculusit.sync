@@ -19,12 +19,12 @@ public sealed class DynamoDbSyncStateService(
     private const string CompaniesAttribute        = "companies";
     private const string ProjectsAttribute         = "projects";
     private const string FailedProjectsAttribute   = "failedProjects";
-    private const string ProjectStatusesAttribute  = "projectStatuses";
+    private const string ProjectStatusesAttribute       = "projectStatuses";
+    private const string FailedProjectStatusesAttribute = "failedProjectStatuses";
     private const string IdAttribute               = "id";
     private const string ClientIdAttribute         = "clientId";
     private const string KekaClientIdAttribute     = "kekaClientId";
     private const string KekaProjectIdAttribute    = "kekaProjectId";
-    private const string KekaTaskIdsAttribute      = "kekaTaskIds";
     private const string FailedTaskKeysAttribute   = "failedTaskKeys";
     private const string NameAttribute             = "name";
     private const string ErrorMessageAttribute     = "errorMessage";
@@ -87,13 +87,6 @@ public sealed class DynamoDbSyncStateService(
                 entry.M.TryGetValue(KekaClientIdAttribute, out var kekaClientIdAttr);
                 entry.M.TryGetValue(KekaProjectIdAttribute, out var kekaProjectIdAttr);
 
-                var taskIds = new Dictionary<string, string>();
-                if (entry.M.TryGetValue(KekaTaskIdsAttribute, out var taskIdsAttr) && taskIdsAttr.M is { Count: > 0 })
-                {
-                    foreach (var kv in taskIdsAttr.M)
-                        taskIds[kv.Key] = kv.Value.S ?? string.Empty;
-                }
-
                 var failedTaskKeys = new List<string>();
                 if (entry.M.TryGetValue(FailedTaskKeysAttribute, out var failedTaskKeysAttr) && failedTaskKeysAttr.SS is { Count: > 0 })
                     failedTaskKeys.AddRange(failedTaskKeysAttr.SS);
@@ -103,7 +96,6 @@ public sealed class DynamoDbSyncStateService(
                     Id             = idAttr?.S ?? string.Empty,
                     KekaClientId   = kekaClientIdAttr?.S,
                     KekaProjectId  = kekaProjectIdAttr?.S,
-                    KekaTaskIds    = taskIds,
                     FailedTaskKeys = failedTaskKeys
                 });
             }
@@ -111,12 +103,13 @@ public sealed class DynamoDbSyncStateService(
 
         return new SyncState
         {
-            SyncType       = syncType,
-            LastUpdatedAt  = lastUpdatedAt,
-            Companies      = companies,
-            Projects       = projects,
-            FailedProjects = await ReadFailedProjectsAsync(response.Item),
-            ProjectStatuses = ReadProjectStatuses(response.Item)
+            SyncType             = syncType,
+            LastUpdatedAt        = lastUpdatedAt,
+            Companies            = companies,
+            Projects             = projects,
+            FailedProjects       = await ReadFailedProjectsAsync(response.Item),
+            ProjectStatuses      = ReadProjectStatuses(response.Item),
+            FailedProjectStatuses = ReadFailedMetadata(response.Item)
         };
     }
 
@@ -159,16 +152,6 @@ public sealed class DynamoDbSyncStateService(
                         [KekaClientIdAttribute]  = new AttributeValue { S = p.KekaClientId ?? string.Empty },
                         [KekaProjectIdAttribute] = new AttributeValue { S = p.KekaProjectId ?? string.Empty }
                     };
-
-                    if (p.KekaTaskIds.Count > 0)
-                    {
-                        m[KekaTaskIdsAttribute] = new AttributeValue
-                        {
-                            M = p.KekaTaskIds.ToDictionary(
-                                kv => kv.Key,
-                                kv => new AttributeValue { S = kv.Value })
-                        };
-                    }
 
                     if (p.FailedTaskKeys.Count > 0)
                         m[FailedTaskKeysAttribute] = new AttributeValue { SS = [.. p.FailedTaskKeys] };
@@ -284,16 +267,6 @@ public sealed class DynamoDbSyncStateService(
                 [KekaClientIdAttribute]  = new AttributeValue { S = p.KekaClientId ?? string.Empty },
                 [KekaProjectIdAttribute] = new AttributeValue { S = p.KekaProjectId ?? string.Empty }
             };
-
-            if (p.KekaTaskIds.Count > 0)
-            {
-                m[KekaTaskIdsAttribute] = new AttributeValue
-                {
-                    M = p.KekaTaskIds.ToDictionary(
-                        kv => kv.Key,
-                        kv => new AttributeValue { S = kv.Value })
-                };
-            }
 
             if (p.FailedTaskKeys.Count > 0)
                 m[FailedTaskKeysAttribute] = new AttributeValue { SS = [.. p.FailedTaskKeys] };
@@ -412,6 +385,55 @@ public sealed class DynamoDbSyncStateService(
         logger.LogInformation("Saved {Count} project status metadata entries.", entries.Count);
     }
 
+    public async Task SaveFailedMetadataAsync(
+        FailedMetadataEntry? failure,
+        DateTime lastUpdatedAt,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogDebug("Saving failed metadata entry (null = reset) to DynamoDB.");
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.Metadata }
+            },
+            ExpressionAttributeNames = new Dictionary<string, string>
+            {
+                ["#failedStatuses"] = FailedProjectStatusesAttribute,
+                ["#lastUpdatedAt"]  = LastUpdatedAtAttribute
+            },
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":lastUpdatedAt"] = new AttributeValue { S = lastUpdatedAt.ToString("o") }
+            }
+        };
+
+        if (failure is null)
+        {
+            // Reset — remove the field so a clean run leaves no stale error.
+            updateRequest.UpdateExpression = "REMOVE #failedStatuses SET #lastUpdatedAt = :lastUpdatedAt";
+        }
+        else
+        {
+            updateRequest.UpdateExpression = "SET #failedStatuses = :failure, #lastUpdatedAt = :lastUpdatedAt";
+            updateRequest.ExpressionAttributeValues[":failure"] = new AttributeValue
+            {
+                M = new Dictionary<string, AttributeValue>
+                {
+                    [ErrorMessageAttribute] = new AttributeValue { S = failure.ErrorMessage }
+                }
+            };
+        }
+
+        await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
+
+        logger.LogInformation(failure is null
+            ? "Cleared failedProjectStatuses on Metadata record."
+            : "Saved failedProjectStatuses with error: {Error}.", failure?.ErrorMessage);
+    }
+
     private static IReadOnlyList<ProjectStatusEntry> ReadProjectStatuses(
         Dictionary<string, AttributeValue> item)
     {
@@ -460,5 +482,14 @@ public sealed class DynamoDbSyncStateService(
         }
 
         return Task.FromResult<IReadOnlyList<FailedProjectEntry>>(failed);
+    }
+
+    private static FailedMetadataEntry? ReadFailedMetadata(Dictionary<string, AttributeValue> item)
+    {
+        if (!item.TryGetValue(FailedProjectStatusesAttribute, out var attr) || attr.M is null)
+            return null;
+
+        attr.M.TryGetValue(ErrorMessageAttribute, out var errAttr);
+        return new FailedMetadataEntry { ErrorMessage = errAttr?.S ?? string.Empty };
     }
 }

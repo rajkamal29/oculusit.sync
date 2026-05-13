@@ -17,6 +17,9 @@ public sealed class SyncState
     /// <summary>Project status metadata entries — full replace on every run.</summary>
     public IReadOnlyList<ProjectStatusEntry> ProjectStatuses { get; init; } = [];
 
+    /// <summary>Failure record from the most recent metadata sync run. Empty when the last run succeeded.</summary>
+    public FailedMetadataEntry? FailedProjectStatuses { get; init; }
+
     /// <summary>UTC timestamp of the last successful sync completion.</summary>
     public DateTime? LastUpdatedAt { get; init; }
 }
@@ -31,7 +34,7 @@ public sealed class SyncedCompanyEntry
     public string ClientId { get; init; } = string.Empty;
 }
 
-/// <summary>Records a synced ConnectWise project. KekaProjectId will be populated once Keka mapping is implemented.</summary>
+/// <summary>Records a synced ConnectWise project.</summary>
 public sealed class SyncedProjectEntry
 {
     /// <summary>ConnectWise project ID.</summary>
@@ -40,18 +43,13 @@ public sealed class SyncedProjectEntry
     /// <summary>Keka client ID resolved from the company sync state via ConnectWise company ID.</summary>
     public string? KekaClientId { get; init; }
 
-    /// <summary>Keka project ID — populated once Keka project sync is implemented.</summary>
+    /// <summary>Keka project ID.</summary>
     public string? KekaProjectId { get; init; }
 
     /// <summary>
-    /// Keka task IDs keyed by short code.
-    /// Keys: BCH, NBCH, BST, NBST, BPT, NBPT.
-    /// </summary>
-    public Dictionary<string, string> KekaTaskIds { get; init; } = [];
-
-    /// <summary>
     /// Short-code keys of tasks that failed to be created on the last run.
-    /// These will be retried on the next update pass.
+    /// These will be retried on the next update pass via the Keka API.
+    /// Empty means all 6 tasks were successfully provisioned.
     /// </summary>
     public List<string> FailedTaskKeys { get; init; } = [];
 }
@@ -66,6 +64,13 @@ public sealed class FailedProjectEntry
     public string Name { get; init; } = string.Empty;
 
     /// <summary>Exception message that caused the failure.</summary>
+    public string ErrorMessage { get; init; } = string.Empty;
+}
+
+/// <summary>Records a metadata sync failure from the most recent run.</summary>
+public sealed class FailedMetadataEntry
+{
+    /// <summary>Exception message that caused the metadata sync to fail.</summary>
     public string ErrorMessage { get; init; } = string.Empty;
 }
 

@@ -168,12 +168,12 @@ public sealed class KekaProjectService(
         _logger.LogInformation("Successfully updated Keka project {ProjectId}.", projectId);
     }
 
-    public async Task<string> CreateTaskAsync(KekaTaskRequest request, CancellationToken cancellationToken = default)
+    public async Task<string> CreateTaskAsync(string projectId, KekaTaskRequest request, CancellationToken cancellationToken = default)
     {
         await SetAuthHeaderAsync(cancellationToken);
 
-        var uri = BuildUri("/psa/projects/tasks");
-        _logger.LogDebug("Creating Keka task '{Name}' for project {ProjectId}.", request.Name, request.ProjectId);
+        var uri = BuildUri($"/psa/projects/{projectId}/tasks");
+        _logger.LogDebug("Creating Keka task '{Name}' for project {ProjectId}.", request.Name, projectId);
 
         var response = await _httpClient.PostAsJsonAsync(uri, request, _jsonOptions, cancellationToken);
 
@@ -188,9 +188,9 @@ public sealed class KekaProjectService(
         {
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogError("Failed to create Keka task '{Name}' for project {ProjectId}. StatusCode: {StatusCode}, Body: {Body}",
-                request.Name, request.ProjectId, response.StatusCode, errorBody);
+                request.Name, projectId, response.StatusCode, errorBody);
             throw new HttpRequestException(
-                $"Keka POST /psa/projects/tasks failed ({(int)response.StatusCode}): {errorBody}",
+                $"Keka POST /psa/projects/{projectId}/tasks failed ({(int)response.StatusCode}): {errorBody}",
                 null, response.StatusCode);
         }
 
@@ -201,11 +201,45 @@ public sealed class KekaProjectService(
         {
             var errors = envelope?.Errors is { Count: > 0 } e ? string.Join(", ", e) : "none";
             throw new InvalidOperationException(
-                $"Keka create task '{request.Name}' for project '{request.ProjectId}' failed. Message: {envelope?.Message}. Errors: {errors}");
+                $"Keka create task '{request.Name}' for project '{projectId}' failed. Message: {envelope?.Message}. Errors: {errors}");
         }
 
         _logger.LogInformation("Successfully created Keka task {TaskId} ('{Name}') for project {ProjectId}.",
-            envelope.Data, request.Name, request.ProjectId);
+            envelope.Data, request.Name, projectId);
         return envelope.Data;
+    }
+
+    public async Task<IReadOnlyList<KekaTask>> GetTasksByProjectAsync(string projectId, CancellationToken cancellationToken = default)
+    {
+        await SetAuthHeaderAsync(cancellationToken);
+
+        var uri = BuildUri($"/psa/projects/{projectId}/tasks");
+        _logger.LogDebug("Fetching tasks for Keka project {ProjectId}.", projectId);
+
+        var response = await _httpClient.GetAsync(uri, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            _logger.LogWarning("Received 401 fetching tasks for Keka project {ProjectId}. Refreshing token.", projectId);
+            await RefreshAuthHeaderAsync(cancellationToken);
+            response = await _httpClient.GetAsync(uri, cancellationToken);
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("Failed to fetch tasks for Keka project {ProjectId}. StatusCode: {StatusCode}, Body: {Body}",
+                projectId, response.StatusCode, errorBody);
+            throw new HttpRequestException(
+                $"Keka GET /psa/projects/{projectId}/tasks failed ({(int)response.StatusCode}): {errorBody}",
+                null, response.StatusCode);
+        }
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<KekaDataListResponse<KekaTask>>(_jsonOptions, cancellationToken);
+
+        var tasks = envelope?.Data ?? [];
+        _logger.LogInformation("Fetched {Count} existing tasks for Keka project {ProjectId}.", tasks.Count, projectId);
+        return tasks;
     }
 }
