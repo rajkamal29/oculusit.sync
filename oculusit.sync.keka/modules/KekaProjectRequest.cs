@@ -62,4 +62,14 @@ public sealed class KekaTaskRequest
 
     [JsonPropertyName("name")]
     public string Name { get; init; } = string.Empty;
+
+    [JsonPropertyName("startDate")]
+    public DateTime StartDate { get; init; }
+
+    [JsonPropertyName("endDate")]
+    public DateTime EndDate { get; init; }
+
+    /// <summary>0 = Non-Billable, 1 = Billable.</summary>
+    [JsonPropertyName("taskBillingType")]
+    public int TaskBillingType { get; init; }
 }

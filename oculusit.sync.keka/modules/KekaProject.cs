@@ -31,3 +31,12 @@ public sealed class KekaProject
     [JsonPropertyName("isBillable")]
     public bool IsBillable { get; init; }
 }
+
+public sealed class KekaTask
+{
+    [JsonPropertyName("id")]
+    public string Id { get; init; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = string.Empty;
+}

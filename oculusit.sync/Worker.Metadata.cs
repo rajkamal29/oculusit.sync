@@ -8,14 +8,43 @@ public sealed partial class Worker
     {
         logger.LogInformation("Starting metadata sync.");
 
-        // Load existing metadata so MappedValues can be preserved across runs.
-        var existing = await syncStateService.GetAsync(SyncTypes.Metadata, stoppingToken);
-        var existingStatuses = existing?.ProjectStatuses ?? [];
+        try
+        {
+            // Load existing metadata so MappedValues can be preserved across runs.
+            var existing = await syncStateService.GetAsync(SyncTypes.Metadata, stoppingToken);
+            var existingStatuses = existing?.ProjectStatuses ?? [];
 
-        var entries = await metadataOrchestration.SyncProjectStatusesAsync(existingStatuses, stoppingToken);
+            var result = await metadataOrchestration.SyncProjectStatusesAsync(existingStatuses, stoppingToken);
 
-        await syncStateService.SaveMetadataAsync(entries, syncStartedAt, stoppingToken);
+            // Always save so that LastUpdatedAt reflects when the job last checked.
+            await syncStateService.SaveMetadataAsync(result.Entries, syncStartedAt, stoppingToken);
 
-        logger.LogInformation("Metadata sync complete. {Count} project status entries saved.", entries.Count);
+            // Clear any failure recorded from a previous run now that this run succeeded.
+            await syncStateService.SaveFailedMetadataAsync(null, syncStartedAt, stoppingToken);
+
+            if (result.HasChanges)
+                logger.LogInformation(
+                    "Metadata sync complete — changes detected. Added={Added}, Updated={Updated}, Deleted={Deleted}. {Total} project status entries saved.",
+                    result.Added, result.Updated, result.Deleted, result.Entries.Count);
+            else
+                logger.LogInformation(
+                    "Metadata sync complete — no changes detected. {Count} project status entries unchanged. LastUpdatedAt refreshed.",
+                    result.Entries.Count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Metadata sync failed. The failure will be recorded in DynamoDB.");
+
+            try
+            {
+                var failure = new FailedMetadataEntry { ErrorMessage = ex.Message };
+                await syncStateService.SaveFailedMetadataAsync(failure, syncStartedAt, stoppingToken);
+            }
+            catch (Exception innerEx)
+            {
+                // Swallow — we must not let a logging failure crash the worker.
+                logger.LogError(innerEx, "Failed to persist metadata sync failure to DynamoDB.");
+            }
+        }
     }
 }
