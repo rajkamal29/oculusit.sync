@@ -1,0 +1,19 @@
+Step 1 → Set variables
+Step 2 → Docker login to ECR
+Step 3 → docker build  (from oculusit.sync\ subfolder)
+Step 4 → docker tag + push
+Step 5 → Register task definition  (from solution root)
+Step 6 → ecs run-task  (manual test)
+Step 7 → Watch CloudWatch logs
+
+
+aws scheduler create-schedule --name oculusit-integration-daily --schedule-expression "cron(30 4 * * ? *)" --flexible-time-window Mode=OFF --state ENABLED --target "{\"Arn\":\"arn:aws:ecs:ap-south-1:272403792718:cluster/oculusit-integration-cluster\",\"RoleArn\":\"arn:aws:iam::272403792718:role/OculusitSchedulerRole\",\"EcsParameters\":{\"TaskDefinitionArn\":\"arn:aws:ecs:ap-south-1:272403792718:task-definition/oculusit-integration-task\",\"LaunchType\":\"FARGATE\",\"NetworkConfiguration\":{\"AwsvpcConfiguration\":{\"Subnets\":[\"subnet-000e20fef6d8f88c4\",\"subnet-0abea5062220e2bba\",\"subnet-0f4e852c95640dbcb\"],\"SecurityGroups\":[\"sg-00b3cd65e16603d1d\"],\"AssignPublicIp\":\"ENABLED\"}}}}" --region ap-south-1
+
+# Tag ECS Cluster
+aws ecs tag-resource --resource-arn "arn:aws:ecs:ap-south-1:272403792718:cluster/oculusit-integration-cluster" --tags key=Project,value=OculusitIntegrationService key=Environment,value=dev key=Name,value=oculusit-integration-cluster --region ap-south-1
+
+# Tag Task Definition
+aws ecs tag-resource --resource-arn "arn:aws:ecs:ap-south-1:272403792718:task-definition/oculusit-integration-task" --tags key=Project,value=OculusitIntegrationService key=Environment,value=dev key=Name,value=oculusit-integration-task --region ap-south-1
+
+# Tag Scheduler
+aws scheduler tag-resource --resource-arn "arn:aws:scheduler:ap-south-1:272403792718:schedule/default/oculusit-integration-daily" --tags Key=Project,Value=OculusitIntegrationService Key=Environment,Value=dev Key=Name,Value=oculusit-integration-daily --region ap-south-1

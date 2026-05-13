@@ -1,0 +1,46 @@
+----------------------- ECS Task Definition
+
+aws ecs register-task-definition --cli-input-json file://infra/task-definition.json --region ap-south-1
+
+To verify which revision is task definitions is using -----------------
+
+aws ecs describe-task-definition --task-definition oculusit-integration-task --query "taskDefinition.{ARN:taskDefinitionArn, Revision:revision}" --region ap-south-1
+
+------------ Run the task manually -----------
+
+$REGION = "ap-south-1"
+
+# List your VPC subnets
+aws ec2 describe-subnets --query "Subnets[*].{ID:SubnetId, AZ:AvailabilityZone, CIDR:CidrBlock, Name:Tags[?Key=='Name']|[0].Value}" --output table --region ap-south-1
+
+# List your security groups
+aws ec2 describe-security-groups --query "SecurityGroups[*].{ID:GroupId, Name:GroupName, VPC:VpcId}" --output table --region ap-south-1
+
+$REGION      = "ap-south-1"
+$SUBNET_ID   = "subnet-YOUR_SUBNET_ID"   # from command above
+$SG_ID       = "sg-YOUR_SG_ID"           # from command above
+
+aws ecs run-task --cluster oculusit-integration-cluster --task-definition oculusit-integration-task --launch-type FARGATE --network-configuration "awsvpcConfiguration={subnets=[subnet-000e20fef6d8f88c4,subnet-0abea5062220e2bba,subnet-0f4e852c95640dbcb],securityGroups=[sg-00b3cd65e16603d1d],assignPublicIp=ENABLED}" --region ap-south-1
+
+
+#Watch Task Status
+
+# Get the task ARN from the run-task response above, then:
+$TASK_ARN = "arn:aws:ecs:ap-south-1:272403792718:task/oculusit-integration-cluster/bde9d64ee5ee454f8b9825dc4299e250"
+
+aws ecs describe-tasks --cluster oculusit-integration-cluster --tasks "arn:aws:ecs:ap-south-1:272403792718:task/oculusit-integration-cluster/bde9d64ee5ee454f8b9825dc4299e250" --query "tasks[0].{Status:lastStatus, StoppedReason:stoppedReason, ExitCode:containers[0].exitCode}" --output table --region ap-south-1
+
+#watch live logs
+
+aws logs tail /ecs/oculusit-integration --follow --region ap-south-1
+
+#Expected Task Lifecycle
+
+PROVISIONING  →  Container being allocated on Fargate
+     ↓
+PENDING       →  Image being pulled from ECR / SSM params being fetched
+     ↓
+RUNNING       →  Worker executing sync logic
+     ↓
+STOPPED       →  Normal — worker exits after sync completes (exit code 0 = success)
+

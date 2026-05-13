@@ -1,0 +1,32 @@
+# List all params belonging to this project
+aws resourcegroupstaggingapi get-resources --tag-filters "Key=Project,Values=OculusitIntegrationService" --resource-type-filters "ssm:parameter" --query "ResourceTagMappingList[].ResourceARN" --output table --region "ap-south-1"
+
+
+$REGION     = "ap-south-1"
+$ACCOUNT_ID = "272403792718"
+
+# ── ConnectWise ───────────────────────────────────────────────────────────────
+aws ssm put-parameter --name "/oculusit/sync/ConnectWise/BaseUrl" --type "String" --value "https://na.myconnectwise.net" --region "ap-south-1" --overwrite --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=ConnectWiseBaseUrl" "Key=Environment,Value=Dev"
+aws ssm put-parameter --name "/oculusit/sync/ConnectWise/CompanyId" --type "String" --value "oculusit"  --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=ConnectWiseCompanyId" "Key=Environment,Value=Dev"
+aws ssm put-parameter --name "/oculusit/sync/ConnectWise/PublicKey" --type "SecureString" --value "CeiNfHfLVueyDBGQ" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=ConnectWisePublicKey" "Key=Environment,Value=Dev"
+aws ssm put-parameter --name "/oculusit/sync/ConnectWise/PrivateKey" --type "SecureString" --value "wqiu3muwhxYMZHJc" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=ConnectWisePrivateKey" "Key=Environment,Value=Dev"
+aws ssm put-parameter --name "/oculusit/sync/ConnectWise/ClientId" --type "SecureString" --value "dddffe51-65c9-440f-93c7-92e68ae271f3" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=ConnectWiseClientId" "Key=Environment,Value=Dev"
+aws ssm put-parameter --name "/oculusit/sync/ConnectWise/ApiVersion" --type "String" --value "/v4_6_release/apis/3.0" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=ConnectWiseApiVersion" "Key=Environment,Value=Dev"
+aws ssm put-parameter --name "/oculusit/sync/ConnectWise/PageSize" --type "String" --value "100" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=ConnectWisePageSize" "Key=Environment,Value=Dev"
+
+# ── Keka ──────────────────────────────────────────────────────────────────────
+aws ssm put-parameter --name "/oculusit/sync/Keka/TenantName" --type "String" --value "rajkumartezo" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=KekaTenantName" "Key=Environment,Value=Dev"
+aws ssm put-parameter --name "/oculusit/sync/Keka/ApiBaseUrl" --type "String" --value "https://rajkumartezo.kekademo.com" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=KekaApiBaseUrl" "Key=Environment,Value=Dev"
+aws ssm put-parameter --name "/oculusit/sync/Keka/IdentityUrl" --type "String" --value "https://login.kekademo.com" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=KekaIdentityUrl" "Key=Environment,Value=Dev"
+aws ssm put-parameter --name "/oculusit/sync/Keka/ClientId" --type "SecureString" --value "f47f78dc-b384-4be6-ac72-0bc5130d67eb" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=KekaClientId" "Key=Environment,Value=Dev"
+aws ssm put-parameter --name "/oculusit/sync/Keka/ClientSecret" --type "SecureString" --value "V7semS62OSQahqplMQv3" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=KekaClientSecret" "Key=Environment,Value=Dev"
+aws ssm put-parameter --name "/oculusit/sync/Keka/ApiKey" --type "SecureString" --value "AogIfeJf7AmcUj7OUjDfS1AATE8CPG-cYY3U87Q8dgA=" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=KekaApiKey" "Key=Environment,Value=Dev"
+aws ssm put-parameter --name "/oculusit/sync/Keka/GrantType" --type "String" --value "kekaapi" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=KekaGrantType" "Key=Environment,Value=Dev"
+aws ssm put-parameter --name "/oculusit/sync/Keka/Scope" --type "String" --value "kekaapi" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=KekaScope" "Key=Environment,Value=Dev"
+aws ssm put-parameter --name "/oculusit/sync/Keka/TokenExpiryBufferSeconds" --type "String" --value "60" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=KekaTokenExpiryBufferSeconds" "Key=Environment,Value=Dev"
+
+# ── DynamoDB ──────────────────────────────────────────────────────────────────
+aws ssm put-parameter --name "/oculusit/sync/DynamoDB/TableName" --type "String" --value "oculusit-sync-state" --region "ap-south-1" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=DynamoDBTableName" "Key=Environment,Value=Dev"
+
+#---------- Explicitly add tags to resources ----------------------------------
+aws ssm add-tags-to-resource --resource-type Parameter --resource-id "/oculusit/sync/ConnectWise/PageSize" --tags "Key=Project,Value=OculusitIntegrationService" "Key=Name,Value=ConnectWisePageSize" "Key=Environment,Value=Dev" --region "ap-south-1"

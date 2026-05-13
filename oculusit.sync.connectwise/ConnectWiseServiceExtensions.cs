@@ -17,7 +17,8 @@ public static class ConnectWiseServiceExtensions
         services.AddHttpClient(nameof(ConnectWiseService))
                 .AddStandardResilienceHandler();
 
-        services.AddSingleton<IConnectWiseService, ConnectWiseService>();
+        services.AddSingleton<IConnectWiseCompanyService, ConnectWiseCompanyService>();
+        services.AddSingleton<IConnectWiseProjectService, ConnectWiseProjectService>();
 
         return services;
     }

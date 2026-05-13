@@ -7,12 +7,12 @@ using oculusit.sync.orchestration.mappings;
 namespace oculusit.sync.orchestration.services;
 
 public sealed class CompanyOrchestrationService(
-    IConnectWiseService connectWiseService,
+    IConnectWiseCompanyService connectWiseService,
     IKekaClientService kekaClientService,
     IKekaCurrencyService kekaCurrencyService,
     ILogger<CompanyOrchestrationService> logger) : ICompanyOrchestrationService
 {
-    public async Task<SyncState> SyncCompaniesToKekaAsync(CancellationToken cancellationToken = default)
+    public async Task<CompanySyncResult> SyncCompaniesToKekaAsync(CancellationToken cancellationToken = default)
     {
         var companies = await connectWiseService.GetAllCompaniesAsync(cancellationToken);
         logger.LogInformation("Fetched {Count} companies from ConnectWise. Starting Keka sync.", companies.Count);
@@ -91,16 +91,14 @@ public sealed class CompanyOrchestrationService(
             "Keka sync complete. Created: {Created}, Updated: {Updated}, Failed: {Failed}",
             created, updated, failed);
 
-        return new SyncState
+        return new CompanySyncResult
         {
-            SyncType = "Company",
-            LastUpdatedAt = DateTime.UtcNow,
-            Companies = syncedEntries,
-            FailedCompanies = failedCompaniesEntries
+            SyncedEntries = syncedEntries,
+            FailedEntries = failedCompaniesEntries
         };
     }
 
-    public async Task<SyncState> SyncCompaniesIncrementalAsync(
+    public async Task<CompanySyncResult> SyncCompaniesIncrementalAsync(
         SyncState syncState, CancellationToken cancellationToken = default)
     {
         var since = syncState.LastUpdatedAt!.Value;
@@ -110,13 +108,7 @@ public sealed class CompanyOrchestrationService(
 
         if (companies.Count == 0)
         {
-            return new SyncState
-            {
-                SyncType = "Company",
-                LastUpdatedAt = DateTime.UtcNow,
-                Companies = [],
-                FailedCompanies = []
-            };
+            return new CompanySyncResult();
         }
 
         // Fetch USD currency ID once before the loop
@@ -186,12 +178,10 @@ public sealed class CompanyOrchestrationService(
             "Incremental Keka sync complete. Created: {Created}, Updated: {Updated}, Failed: {Failed}",
             created, updated, failed);
 
-        return new SyncState
+        return new CompanySyncResult
         {
-            SyncType = "Company",
-            LastUpdatedAt = DateTime.UtcNow,
-            Companies = newEntries,
-            FailedCompanies = failedCompaniesEntries
+            SyncedEntries = newEntries,
+            FailedEntries = failedCompaniesEntries
         };
     }
 
@@ -202,11 +192,11 @@ public sealed class CompanyOrchestrationService(
 
         if (syncState.FailedCompanies.Count == 0)
         {
-            logger.LogInformation("No failed companies to retry.");
+            logger.LogInformation("No failed companies to sync in keka.");
             return newEntries;
         }
 
-        logger.LogInformation("Retrying {Count} previously failed companies.", syncState.FailedCompanies.Count);
+        logger.LogInformation("Sync {Count} failed companies to keka.", syncState.FailedCompanies.Count);
 
         // Extract the IDs of failed companies from DynamoDB
         var failedCompanyIds = syncState.FailedCompanies.Select(f => int.Parse(f.Id)).ToList();
