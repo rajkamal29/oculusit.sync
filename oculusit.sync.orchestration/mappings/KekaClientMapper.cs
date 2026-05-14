@@ -1,5 +1,6 @@
 using oculusit.sync.connectwise.modules;
 using oculusit.sync.keka.modules;
+using System.Text.RegularExpressions;
 
 namespace oculusit.sync.orchestration.mappings;
 
@@ -7,6 +8,8 @@ public static class KekaClientMapper
 {
     private const string FallbackEmail       = "blank_customer_email@oculusit.com";
     private const string FallbackCountryCode  = "US";
+    private const int MaxWebsiteLength = 48;
+    private static readonly Regex PhoneRegex = new(@"^(?=.{7,18}$)\(?\+?\(?\d*\)?[ \/()]?\s?([- \/()]?\s?\d[- \/()]?){7,18}$", RegexOptions.Compiled);
 
     // Well-known country name → ISO 3166-1 alpha-2 code mappings
     private static readonly Dictionary<string, string> _countryCodeMap = new(StringComparer.OrdinalIgnoreCase)
@@ -66,8 +69,8 @@ public static class KekaClientMapper
             Name        = company.Name,
             Description = NullIfEmpty(company.Identifier),
             Code        = company.Id,
-            Phone       = NullIfEmpty(company.PhoneNumber),
-            Website     = NullIfEmpty(company.Website),
+            Phone       = ValidatePhone(company.PhoneNumber),
+            Website     = ValidateWebsite(company.Website),
             Email       = string.IsNullOrWhiteSpace(company.InvoiceCCEmailAddress)
                             ? FallbackEmail
                             : ExtractFirstEmail(company.InvoiceCCEmailAddress),
@@ -142,4 +145,32 @@ public static class KekaClientMapper
     /// </summary>
     private static string ExtractFirstEmail(string email) =>
         email.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)[0];
+
+    private static string? ValidatePhone(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+            return null;
+
+        var trimmedPhone = phone.Trim();
+
+        // Validate against mobile number regex
+        if (!PhoneRegex.IsMatch(trimmedPhone))
+            return null;
+
+        return trimmedPhone;
+    }
+
+    private static string? ValidateWebsite(string? website)
+    {
+        if (string.IsNullOrWhiteSpace(website))
+            return null;
+
+        var trimmedWebsite = website.Trim();
+
+        // Check length (VARCHAR(48))
+        if (trimmedWebsite.Length > MaxWebsiteLength)
+            return null;
+
+        return trimmedWebsite;
+    }
 }
