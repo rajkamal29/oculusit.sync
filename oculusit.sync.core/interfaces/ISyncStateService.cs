@@ -10,14 +10,21 @@ public interface ISyncStateService
     /// <summary>Persists the sync state for the given sync type.</summary>
     Task SaveAsync(SyncState state, CancellationToken cancellationToken = default);
 
-    /// <summary>Appends new company entries to the existing Companies list and updates LastUpdatedAt.</summary>
-    Task AppendCompaniesAsync(string syncType, IReadOnlyList<SyncedCompanyEntry> newEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
-
     /// <summary>Appends new project entries to the existing Projects list and updates LastUpdatedAt.</summary>
     Task AppendProjectsAsync(string syncType, IReadOnlyList<SyncedProjectEntry> newEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
 
     /// <summary>Replaces the FailedProjects list with the provided entries so the latest failure set is always current.</summary>
     Task SaveFailedProjectsAsync(string syncType, IReadOnlyList<FailedProjectEntry> failedEntries, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Appends incremental company and failed-company entries and updates LastUpdatedAt.
+    /// </summary>
+    Task AppendCompanySyncStateAsync(string syncType, SyncState incrementalState, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes failed companies by their IDs from the sync state in DynamoDB.
+    /// </summary>
+    Task RemoveFailedCompaniesAsync(string syncType, IReadOnlyList<string> failedCompanyIds, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Fully replaces the ProjectStatuses metadata list each run.

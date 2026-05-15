@@ -17,11 +17,12 @@ public sealed partial class Worker
             await syncStateService.SaveAsync(new SyncState
             {
                 SyncType      = SyncTypes.Company,
-                Companies     = syncedEntries,
+                Companies     = syncedEntries.SyncedEntries,
+                FailedCompanies = syncedEntries.FailedEntries,
                 LastUpdatedAt = syncStartedAt
             }, stoppingToken);
 
-            logger.LogInformation("Full company sync complete. {Count} company mappings saved.", syncedEntries.Count);
+            logger.LogInformation("Full company sync complete. {Count} companies entries saved, {Failed} failed.", syncedEntries.SyncedEntries.Count, syncedEntries.FailedEntries.Count);
         }
         else
         {
@@ -29,9 +30,34 @@ public sealed partial class Worker
 
             var newEntries = await companyOrchestration.SyncCompaniesIncrementalAsync(syncState, stoppingToken);
 
-            await syncStateService.AppendCompaniesAsync(SyncTypes.Company, newEntries, syncStartedAt, stoppingToken);
+            var updatedSyncState = new SyncState
+            {
+                Companies = newEntries.SyncedEntries,
+                FailedCompanies = newEntries.FailedEntries,
+                LastUpdatedAt = syncStartedAt
+            };
+            await syncStateService.AppendCompanySyncStateAsync(SyncTypes.Company, updatedSyncState, syncStartedAt, stoppingToken);
 
-            logger.LogInformation("Incremental company sync complete. {Count} new mappings appended.", newEntries.Count);
+            logger.LogInformation("Incremental company sync complete. {Count} companies entries saved, {Failed} failed.", newEntries.SyncedEntries.Count, newEntries.FailedEntries.Count);
+
+            logger.LogInformation("Failed Companies Sync.");
+
+            var retrySyncedEntries = await companyOrchestration.RetryFailedCompaniesAsync(syncState, stoppingToken);
+            if (retrySyncedEntries.Count > 0)
+            {
+                await syncStateService.AppendCompanySyncStateAsync("Company", new SyncState
+                {
+                    SyncType = "Company",
+                    Companies = retrySyncedEntries,
+                    FailedCompanies = []
+                }, syncStartedAt, stoppingToken);
+
+                var retriedIds = retrySyncedEntries.Select(x => x.Id).ToList();
+                await syncStateService.RemoveFailedCompaniesAsync("Company", retriedIds, stoppingToken);
+                logger.LogInformation("Removed {Count} synced failed companies from the failed list in DynamoDB.", retriedIds.Count);
+            }
+
+            logger.LogInformation("Failed companies sync completed. {retried} companies synced in keka. {failedCompanies} companies still failed to sync in keka.", retrySyncedEntries.Count, syncState.FailedCompanies.Count - retrySyncedEntries.Count);
         }
     }
 }

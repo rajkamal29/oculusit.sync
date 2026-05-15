@@ -51,4 +51,31 @@ public sealed class ConnectWiseCompanyService(
 
         return results;
     }
+
+    public async Task<IReadOnlyList<ConnectWiseCompany>> GetCompaniesByIdsAsync(
+        IReadOnlyList<int> companyIds, CancellationToken cancellationToken = default)
+    {
+        if (companyIds.Count == 0)
+        {
+            logger.LogInformation("No company IDs provided for retrieval.");
+            return [];
+        }
+
+        var idsCondition = string.Join(" OR ", companyIds.Select(id => $"id = {id}"));
+        var condition = $"({idsCondition})";
+
+        logger.LogInformation("Starting ConnectWise company fetch for {Count} specific company IDs", companyIds.Count);
+
+        var results = await FetchPagedAsync<ConnectWiseCompany>(
+            relativeUrlBase: "/company/companies",
+            fields: Fields,
+            orderBy: "lastUpdated asc",
+            conditions: condition,
+            pageSize: Config.PageSize,
+            cancellationToken: cancellationToken);
+
+        logger.LogInformation("Completed ConnectWise company fetch by IDs. Total companies loaded: {Total}", results.Count);
+
+        return results;
+    }
 }
