@@ -16,8 +16,27 @@ public interface ISyncStateService
     /// <summary>Appends new project entries to the existing Projects list and updates LastUpdatedAt.</summary>
     Task AppendProjectsAsync(string syncType, IReadOnlyList<SyncedProjectEntry> newEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
 
-    /// <summary>Replaces the FailedProjects list with the provided entries so the latest failure set is always current.</summary>
-    Task SaveFailedProjectsAsync(string syncType, IReadOnlyList<FailedProjectEntry> failedEntries, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Overwrites the <c>projects</c> attribute on the <c>Failures</c> record with the latest failed project entries.
+    /// Pass an empty list to clear all failures after a clean run.
+    /// </summary>
+    Task SaveFailedProjectsAsync(IReadOnlyList<FailedProjectEntry> failedEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Overwrites the companies and lastUpdatedAt on the <c>Failures</c> record with the latest failed company entries.
+    /// Pass an empty list to clear all failures after a clean run.
+    /// </summary>
+    Task SaveFailedCompaniesAsync(IReadOnlyList<FailedCompanyEntry> failedEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Overwrites the <c>summary</c> attribute on the <c>Company</c> record with the latest run counts.
+    /// </summary>
+    Task SaveCompanySummaryAsync(CompanySyncSummary summary, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Overwrites the <c>summary</c> attribute on the <c>Project</c> record with the latest run counts.
+    /// </summary>
+    Task SaveProjectSummaryAsync(ProjectSyncSummary summary, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Fully replaces the ProjectStatuses metadata list each run.

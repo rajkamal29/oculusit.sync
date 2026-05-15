@@ -11,8 +11,8 @@ public sealed class SyncState
     /// <summary>Project mappings captured during the sync run.</summary>
     public IReadOnlyList<SyncedProjectEntry> Projects { get; init; } = [];
 
-    /// <summary>Projects that failed to sync during the most recent run.</summary>
-    public IReadOnlyList<FailedProjectEntry> FailedProjects { get; init; } = [];
+    /// <summary>Companies that failed to sync during the most recent run.</summary>
+    public IReadOnlyList<FailedCompanyEntry> FailedCompanies { get; init; } = [];
 
     /// <summary>Project status metadata entries — full replace on every run.</summary>
     public IReadOnlyList<ProjectStatusEntry> ProjectStatuses { get; init; } = [];
@@ -20,8 +20,40 @@ public sealed class SyncState
     /// <summary>Failure record from the most recent metadata sync run. Empty when the last run succeeded.</summary>
     public FailedMetadataEntry? FailedProjectStatuses { get; init; }
 
+    /// <summary>Run-level summary for the Company sync — total processed, succeeded, and failed.</summary>
+    public CompanySyncSummary? Summary { get; init; }
+
+    /// <summary>Run-level summary for the Project sync — total processed, succeeded, and failed.</summary>
+    public ProjectSyncSummary? ProjectSummary { get; init; }
+
     /// <summary>UTC timestamp of the last successful sync completion.</summary>
     public DateTime? LastUpdatedAt { get; init; }
+}
+
+/// <summary>Aggregated counts for a single company sync run.</summary>
+public sealed class CompanySyncSummary
+{
+    /// <summary>Total number of companies processed in this run.</summary>
+    public int Total { get; init; }
+
+    /// <summary>Number of companies successfully synced (created or updated).</summary>
+    public int Succeeded { get; init; }
+
+    /// <summary>Number of companies that failed to sync.</summary>
+    public int Failed { get; init; }
+}
+
+/// <summary>Aggregated counts for a single project sync run.</summary>
+public sealed class ProjectSyncSummary
+{
+    /// <summary>Total number of projects processed in this run.</summary>
+    public int Total { get; init; }
+
+    /// <summary>Number of projects successfully synced (created or updated).</summary>
+    public int Succeeded { get; init; }
+
+    /// <summary>Number of projects that failed to sync.</summary>
+    public int Failed { get; init; }
 }
 
 /// <summary>Records the mapping between a ConnectWise company ID and its Keka client ID.</summary>
@@ -61,6 +93,19 @@ public sealed class FailedProjectEntry
     public string Id { get; init; } = string.Empty;
 
     /// <summary>ConnectWise project name.</summary>
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>Exception message that caused the failure.</summary>
+    public string ErrorMessage { get; init; } = string.Empty;
+}
+
+/// <summary>Records a ConnectWise company that failed to sync to Keka.</summary>
+public sealed class FailedCompanyEntry
+{
+    /// <summary>ConnectWise company ID.</summary>
+    public string Id { get; init; } = string.Empty;
+
+    /// <summary>ConnectWise company name.</summary>
     public string Name { get; init; } = string.Empty;
 
     /// <summary>Exception message that caused the failure.</summary>

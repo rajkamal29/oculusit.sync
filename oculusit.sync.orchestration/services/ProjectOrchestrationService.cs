@@ -72,6 +72,13 @@ public sealed class ProjectOrchestrationService(
                     logger.LogWarning(
                         "No Keka client found for ConnectWise company ID {CompanyId} on project {ProjectId} - {ProjectName}. Skipping.",
                         companyId, project.Id, project.Name);
+                    failed++;
+                    failedEntries.Add(new FailedProjectEntry
+                    {
+                        Id           = project.Id.ToString(),
+                        Name         = project.Name ?? string.Empty,
+                        ErrorMessage = $"No Keka client found for ConnectWise company ID {companyId}."
+                    });
                     continue;
                 }
 
@@ -145,7 +152,14 @@ public sealed class ProjectOrchestrationService(
             "Full project sync complete. Created: {Created}, Updated: {Updated}, Failed: {Failed}.",
             created, updated, failed);
 
-        return new ProjectSyncResult { SyncedEntries = syncedEntries, FailedEntries = failedEntries };
+        return new ProjectSyncResult
+        {
+            SyncedEntries = syncedEntries,
+            FailedEntries = failedEntries,
+            Total     = projects.Count,
+            Succeeded = created + updated,
+            Failed    = failed
+        };
     }
 
     public async Task<ProjectSyncResult> SyncProjectsIncrementalAsync(
@@ -198,6 +212,13 @@ public sealed class ProjectOrchestrationService(
                     logger.LogWarning(
                         "No Keka client found for ConnectWise company ID {CompanyId} on project {ProjectId} - {ProjectName}. Skipping.",
                         companyId, project.Id, project.Name);
+                    failed++;
+                    failedEntries.Add(new FailedProjectEntry
+                    {
+                        Id           = project.Id.ToString(),
+                        Name         = project.Name ?? string.Empty,
+                        ErrorMessage = $"No Keka client found for ConnectWise company ID {companyId}."
+                    });
                     continue;
                 }
 
@@ -285,7 +306,14 @@ public sealed class ProjectOrchestrationService(
             "Incremental project sync complete. Created: {Created}, Updated: {Updated}, Failed: {Failed}.",
             created, updated, failed);
 
-        return new ProjectSyncResult { SyncedEntries = newEntries, FailedEntries = failedEntries };
+        return new ProjectSyncResult
+        {
+            SyncedEntries = newEntries,
+            FailedEntries = failedEntries,
+            Total     = projects.Count,
+            Succeeded = created + updated,
+            Failed    = failed
+        };
     }
 
     /// <summary>

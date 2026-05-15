@@ -17,11 +17,23 @@ public sealed partial class Worker
             await syncStateService.SaveAsync(new SyncState
             {
                 SyncType      = SyncTypes.Company,
-                Companies     = syncedEntries,
+                Companies     = syncedEntries.SyncedEntries,
                 LastUpdatedAt = syncStartedAt
             }, stoppingToken);
 
-            logger.LogInformation("Full company sync complete. {Count} company mappings saved.", syncedEntries.Count);
+            await syncStateService.SaveFailedCompaniesAsync(syncedEntries.FailedEntries, syncStartedAt, stoppingToken);
+
+            await syncStateService.SaveCompanySummaryAsync(
+                new CompanySyncSummary
+                {
+                    Total     = syncedEntries.Total,
+                    Succeeded = syncedEntries.Succeeded,
+                    Failed    = syncedEntries.Failed
+                }, syncStartedAt, stoppingToken);
+
+            logger.LogInformation(
+                "Full company sync complete. Total: {Total}, Succeeded: {Succeeded}, Failed: {Failed}.",
+                syncedEntries.Total, syncedEntries.Succeeded, syncedEntries.Failed);
         }
         else
         {
@@ -29,9 +41,21 @@ public sealed partial class Worker
 
             var newEntries = await companyOrchestration.SyncCompaniesIncrementalAsync(syncState, stoppingToken);
 
-            await syncStateService.AppendCompaniesAsync(SyncTypes.Company, newEntries, syncStartedAt, stoppingToken);
+            await syncStateService.AppendCompaniesAsync(SyncTypes.Company, newEntries.SyncedEntries, syncStartedAt, stoppingToken);
 
-            logger.LogInformation("Incremental company sync complete. {Count} new mappings appended.", newEntries.Count);
+            await syncStateService.SaveFailedCompaniesAsync(newEntries.FailedEntries, syncStartedAt, stoppingToken);
+
+            await syncStateService.SaveCompanySummaryAsync(
+                new CompanySyncSummary
+                {
+                    Total     = newEntries.Total,
+                    Succeeded = newEntries.Succeeded,
+                    Failed    = newEntries.Failed
+                }, syncStartedAt, stoppingToken);
+
+            logger.LogInformation(
+                "Incremental company sync complete. Total: {Total}, Succeeded: {Succeeded}, Failed: {Failed}.",
+                newEntries.Total, newEntries.Succeeded, newEntries.Failed);
         }
     }
 }

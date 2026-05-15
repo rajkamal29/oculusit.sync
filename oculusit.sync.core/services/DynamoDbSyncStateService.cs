@@ -30,6 +30,10 @@ public sealed class DynamoDbSyncStateService(
     private const string ErrorMessageAttribute     = "errorMessage";
     private const string ValueAttribute            = "value";
     private const string MappedValueAttribute      = "mappedValue";
+    private const string SummaryAttribute           = "summary";
+    private const string TotalAttribute             = "total";
+    private const string SucceededAttribute         = "succeeded";
+    private const string FailedAttribute            = "failed";
 
     private readonly string _tableName = options.Value.TableName;
 
@@ -103,12 +107,11 @@ public sealed class DynamoDbSyncStateService(
 
         return new SyncState
         {
-            SyncType             = syncType,
-            LastUpdatedAt        = lastUpdatedAt,
-            Companies            = companies,
-            Projects             = projects,
-            FailedProjects       = await ReadFailedProjectsAsync(response.Item),
-            ProjectStatuses      = ReadProjectStatuses(response.Item),
+            SyncType              = syncType,
+            LastUpdatedAt         = lastUpdatedAt,
+            Companies             = companies,
+            Projects              = projects,
+            ProjectStatuses       = ReadProjectStatuses(response.Item),
             FailedProjectStatuses = ReadFailedMetadata(response.Item)
         };
     }
@@ -157,22 +160,6 @@ public sealed class DynamoDbSyncStateService(
                         m[FailedTaskKeysAttribute] = new AttributeValue { SS = [.. p.FailedTaskKeys] };
 
                     return new AttributeValue { M = m };
-                }).ToList()
-            };
-        }
-
-        if (state.FailedProjects.Count > 0)
-        {
-            item[FailedProjectsAttribute] = new AttributeValue
-            {
-                L = state.FailedProjects.Select(p => new AttributeValue
-                {
-                    M = new Dictionary<string, AttributeValue>
-                    {
-                        [IdAttribute]           = new AttributeValue { S = p.Id },
-                        [NameAttribute]         = new AttributeValue { S = p.Name },
-                        [ErrorMessageAttribute] = new AttributeValue { S = p.ErrorMessage }
-                    }
                 }).ToList()
             };
         }
@@ -302,11 +289,11 @@ public sealed class DynamoDbSyncStateService(
     }
 
     public async Task SaveFailedProjectsAsync(
-        string syncType,
         IReadOnlyList<FailedProjectEntry> failedEntries,
+        DateTime lastUpdatedAt,
         CancellationToken cancellationToken = default)
     {
-        logger.LogDebug("Saving {Count} failed project entries to DynamoDB for syncType={SyncType}.", failedEntries.Count, syncType);
+        logger.LogDebug("Saving {Count} failed project entries to DynamoDB (syncType={SyncType}).", failedEntries.Count, SyncTypes.Failures);
 
         var failedItems = failedEntries.Select(p => new AttributeValue
         {
@@ -323,23 +310,154 @@ public sealed class DynamoDbSyncStateService(
             TableName = _tableName,
             Key = new Dictionary<string, AttributeValue>
             {
-                [KeyAttribute] = new AttributeValue { S = syncType }
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.Failures }
             },
-            // Overwrite the failedProjects list each run so it always reflects the latest failures.
-            UpdateExpression = "SET #failedProjects = :failedItems",
+            // Full replace every run so the Failures record always reflects the latest state.
+            UpdateExpression = "SET #projects = :projects, #lastUpdatedAt = :lastUpdatedAt",
             ExpressionAttributeNames = new Dictionary<string, string>
             {
-                ["#failedProjects"] = FailedProjectsAttribute
+                ["#projects"]      = ProjectsAttribute,
+                ["#lastUpdatedAt"] = LastUpdatedAtAttribute
             },
             ExpressionAttributeValues = new Dictionary<string, AttributeValue>
             {
-                [":failedItems"] = new AttributeValue { L = failedItems }
+                [":projects"]      = new AttributeValue { L = failedItems },
+                [":lastUpdatedAt"] = new AttributeValue { S = lastUpdatedAt.ToString("o") }
             }
         };
 
         await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
 
-        logger.LogInformation("Saved {Count} failed project entries for syncType={SyncType}.", failedEntries.Count, syncType);
+        logger.LogInformation("Saved {Count} failed project entries to Failures record, lastUpdatedAt={LastUpdatedAt}.",
+            failedEntries.Count, lastUpdatedAt);
+    }
+
+    public async Task SaveFailedCompaniesAsync(
+        IReadOnlyList<FailedCompanyEntry> failedEntries,
+        DateTime lastUpdatedAt,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogDebug("Saving {Count} failed company entries to DynamoDB (syncType={SyncType}).", failedEntries.Count, SyncTypes.Failures);
+
+        var failedItems = failedEntries.Select(c => new AttributeValue
+        {
+            M = new Dictionary<string, AttributeValue>
+            {
+                [IdAttribute]           = new AttributeValue { S = c.Id },
+                [NameAttribute]         = new AttributeValue { S = c.Name },
+                [ErrorMessageAttribute] = new AttributeValue { S = c.ErrorMessage }
+            }
+        }).ToList();
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.Failures }
+            },
+            // Full replace every run so the Failures record always reflects the latest state.
+            UpdateExpression = "SET #companies = :companies, #lastUpdatedAt = :lastUpdatedAt",
+            ExpressionAttributeNames = new Dictionary<string, string>
+            {
+                ["#companies"]     = CompaniesAttribute,
+                ["#lastUpdatedAt"] = LastUpdatedAtAttribute
+            },
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":companies"]     = new AttributeValue { L = failedItems },
+                [":lastUpdatedAt"] = new AttributeValue { S = lastUpdatedAt.ToString("o") }
+            }
+        };
+
+        await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
+
+        logger.LogInformation("Saved {Count} failed company entries to Failures record, lastUpdatedAt={LastUpdatedAt}.",
+            failedEntries.Count, lastUpdatedAt);
+    }
+
+    public async Task SaveCompanySummaryAsync(
+        CompanySyncSummary summary,
+        DateTime lastUpdatedAt,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogDebug("Saving company sync summary to DynamoDB (syncType={SyncType}).", SyncTypes.Company);
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.Company }
+            },
+            UpdateExpression = "SET #summary = :summary, #lastUpdatedAt = :lastUpdatedAt",
+            ExpressionAttributeNames = new Dictionary<string, string>
+            {
+                ["#summary"]       = SummaryAttribute,
+                ["#lastUpdatedAt"] = LastUpdatedAtAttribute
+            },
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":summary"] = new AttributeValue
+                {
+                    M = new Dictionary<string, AttributeValue>
+                    {
+                        [TotalAttribute]     = new AttributeValue { N = summary.Total.ToString() },
+                        [SucceededAttribute] = new AttributeValue { N = summary.Succeeded.ToString() },
+                        [FailedAttribute]    = new AttributeValue { N = summary.Failed.ToString() }
+                    }
+                },
+                [":lastUpdatedAt"] = new AttributeValue { S = lastUpdatedAt.ToString("o") }
+            }
+        };
+
+        await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
+
+        logger.LogInformation(
+            "Saved company sync summary: Total={Total}, Succeeded={Succeeded}, Failed={Failed}, lastUpdatedAt={LastUpdatedAt}.",
+            summary.Total, summary.Succeeded, summary.Failed, lastUpdatedAt);
+    }
+
+    public async Task SaveProjectSummaryAsync(
+        ProjectSyncSummary summary,
+        DateTime lastUpdatedAt,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogDebug("Saving project sync summary to DynamoDB (syncType={SyncType}).", SyncTypes.Project);
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.Project }
+            },
+            UpdateExpression = "SET #summary = :summary, #lastUpdatedAt = :lastUpdatedAt",
+            ExpressionAttributeNames = new Dictionary<string, string>
+            {
+                ["#summary"]       = SummaryAttribute,
+                ["#lastUpdatedAt"] = LastUpdatedAtAttribute
+            },
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":summary"] = new AttributeValue
+                {
+                    M = new Dictionary<string, AttributeValue>
+                    {
+                        [TotalAttribute]     = new AttributeValue { N = summary.Total.ToString() },
+                        [SucceededAttribute] = new AttributeValue { N = summary.Succeeded.ToString() },
+                        [FailedAttribute]    = new AttributeValue { N = summary.Failed.ToString() }
+                    }
+                },
+                [":lastUpdatedAt"] = new AttributeValue { S = lastUpdatedAt.ToString("o") }
+            }
+        };
+
+        await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
+
+        logger.LogInformation(
+            "Saved project sync summary: Total={Total}, Succeeded={Succeeded}, Failed={Failed}, lastUpdatedAt={LastUpdatedAt}.",
+            summary.Total, summary.Succeeded, summary.Failed, lastUpdatedAt);
     }
 
     public async Task SaveMetadataAsync(

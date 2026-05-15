@@ -26,3 +26,19 @@ public interface IProjectOrchestrationService
         SyncState? metadataSyncState,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>Result returned by project sync operations.</summary>
+public sealed class ProjectSyncResult
+{
+    public IReadOnlyList<SyncedProjectEntry> SyncedEntries { get; init; } = [];
+    public IReadOnlyList<FailedProjectEntry> FailedEntries { get; init; } = [];
+
+    /// <summary>Total projects processed in this run.</summary>
+    public int Total { get; init; }
+
+    /// <summary>Number of projects successfully synced (created or updated).</summary>
+    public int Succeeded { get; init; }
+
+    /// <summary>Number of projects that failed to sync.</summary>
+    public int Failed { get; init; }
+}

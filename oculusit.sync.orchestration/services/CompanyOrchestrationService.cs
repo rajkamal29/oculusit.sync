@@ -13,7 +13,7 @@ public sealed class CompanyOrchestrationService(
     IKekaCurrencyService kekaCurrencyService,
     ILogger<CompanyOrchestrationService> logger) : ICompanyOrchestrationService
 {
-    public async Task<IReadOnlyList<SyncedCompanyEntry>> SyncCompaniesToKekaAsync(CancellationToken cancellationToken = default)
+    public async Task<CompanySyncResult> SyncCompaniesToKekaAsync(CancellationToken cancellationToken = default)
     {
         var companies = await connectWiseService.GetAllCompaniesAsync(cancellationToken);
         logger.LogInformation("Fetched {Count} companies from ConnectWise. Starting Keka sync.", companies.Count);
@@ -39,6 +39,7 @@ public sealed class CompanyOrchestrationService(
         var failed  = 0;
 
         var syncedEntries = new List<SyncedCompanyEntry>();
+        var failedCompaniesEntries = new List<FailedCompanyEntry>();
 
         foreach (var company in companies)
         {
@@ -79,6 +80,12 @@ public sealed class CompanyOrchestrationService(
                 logger.LogError(ex, "Failed to sync ConnectWise company {CompanyId} - {CompanyName} to Keka",
                     company.Id, company.Name);
                 failed++;
+                failedCompaniesEntries.Add(new FailedCompanyEntry
+                {
+                    Id           = company.Id.ToString(),
+                    Name         = company.Name ?? string.Empty,
+                    ErrorMessage = ex.Message
+                });
             }
         }
 
@@ -86,10 +93,17 @@ public sealed class CompanyOrchestrationService(
             "Keka sync complete. Created: {Created}, Updated: {Updated}, Skipped: {Skipped}, Failed: {Failed}",
             created, updated, skipped, failed);
 
-        return syncedEntries;
+        return new CompanySyncResult
+        {
+            SyncedEntries = syncedEntries,
+            FailedEntries = failedCompaniesEntries,
+            Total     = companies.Count,
+            Succeeded = created + updated,
+            Failed    = failed
+        };
     }
 
-    public async Task<IReadOnlyList<SyncedCompanyEntry>> SyncCompaniesIncrementalAsync(
+    public async Task<CompanySyncResult> SyncCompaniesIncrementalAsync(
         SyncState syncState, CancellationToken cancellationToken = default)
     {
         var since = syncState.LastUpdatedAt!.Value;
@@ -98,7 +112,7 @@ public sealed class CompanyOrchestrationService(
         logger.LogInformation("Incremental fetch returned {Count} companies updated since {Since}.", companies.Count, since);
 
         if (companies.Count == 0)
-            return [];
+            return new CompanySyncResult();
 
         var usdCurrencyId = await kekaCurrencyService.GetUsdCurrencyIdAsync(cancellationToken);
         if (usdCurrencyId is null)
@@ -115,6 +129,7 @@ public sealed class CompanyOrchestrationService(
 
         // Only newly created entries are returned — updates don't change the mapping.
         var newEntries = new List<SyncedCompanyEntry>();
+        var failedCompaniesEntries = new List<FailedCompanyEntry>();
 
         foreach (var company in companies)
         {
@@ -153,6 +168,12 @@ public sealed class CompanyOrchestrationService(
                 logger.LogError(ex, "Incremental: Failed to sync ConnectWise company {CompanyId} - {CompanyName} to Keka",
                     company.Id, company.Name);
                 failed++;
+                failedCompaniesEntries.Add(new FailedCompanyEntry
+                {
+                    Id           = company.Id.ToString(),
+                    Name         = company.Name ?? string.Empty,
+                    ErrorMessage = ex.Message
+                });
             }
         }
 
@@ -160,6 +181,13 @@ public sealed class CompanyOrchestrationService(
             "Incremental Keka sync complete. Created: {Created}, Updated: {Updated}, Failed: {Failed}",
             created, updated, failed);
 
-        return newEntries;
+        return new CompanySyncResult
+        {
+            SyncedEntries = newEntries,
+            FailedEntries = failedCompaniesEntries,
+            Total     = companies.Count,
+            Succeeded = created + updated,
+            Failed    = failed
+        };
     }
 }

@@ -27,14 +27,24 @@ public sealed partial class Worker
 
             await syncStateService.SaveAsync(new SyncState
             {
-                SyncType       = SyncTypes.Project,
-                Projects       = result.SyncedEntries,
-                FailedProjects = result.FailedEntries,
-                LastUpdatedAt  = syncStartedAt
+                SyncType      = SyncTypes.Project,
+                Projects      = result.SyncedEntries,
+                LastUpdatedAt = syncStartedAt
             }, stoppingToken);
 
-            logger.LogInformation("Full project sync complete. {Count} project entries saved, {Failed} failed.",
-                result.SyncedEntries.Count, result.FailedEntries.Count);
+            await syncStateService.SaveFailedProjectsAsync(result.FailedEntries, syncStartedAt, stoppingToken);
+
+            await syncStateService.SaveProjectSummaryAsync(
+                new ProjectSyncSummary
+                {
+                    Total     = result.Total,
+                    Succeeded = result.Succeeded,
+                    Failed    = result.Failed
+                }, syncStartedAt, stoppingToken);
+
+            logger.LogInformation(
+                "Full project sync complete. Total: {Total}, Succeeded: {Succeeded}, Failed: {Failed}.",
+                result.Total, result.Succeeded, result.Failed);
         }
         else
         {
@@ -45,10 +55,19 @@ public sealed partial class Worker
             await syncStateService.AppendProjectsAsync(SyncTypes.Project, result.SyncedEntries, syncStartedAt, stoppingToken);
 
             // Always overwrite failed projects so stale failures from previous runs are cleared.
-            await syncStateService.SaveFailedProjectsAsync(SyncTypes.Project, result.FailedEntries, stoppingToken);
+            await syncStateService.SaveFailedProjectsAsync(result.FailedEntries, syncStartedAt, stoppingToken);
 
-            logger.LogInformation("Incremental project sync complete. {Count} new project entries appended, {Failed} failed.",
-                result.SyncedEntries.Count, result.FailedEntries.Count);
+            await syncStateService.SaveProjectSummaryAsync(
+                new ProjectSyncSummary
+                {
+                    Total     = result.Total,
+                    Succeeded = result.Succeeded,
+                    Failed    = result.Failed
+                }, syncStartedAt, stoppingToken);
+
+            logger.LogInformation(
+                "Incremental project sync complete. Total: {Total}, Succeeded: {Succeeded}, Failed: {Failed}.",
+                result.Total, result.Succeeded, result.Failed);
         }
     }
 }

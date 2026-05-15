@@ -14,6 +14,12 @@ public static class KekaServiceExtensions
     private static readonly TimeSpan ProjectCircuitBreakerSampling = TimeSpan.FromMinutes(5);   // must be >= 2× attempt timeout (240 s)
     private static readonly TimeSpan ProjectTotalTimeout           = TimeSpan.FromMinutes(10);  // overall ceiling across all retries
 
+    // Total timeout per attempt for Keka client calls — client creation/update
+    // can be slow on the Keka side, matching the project service timeouts.
+    private static readonly TimeSpan ClientAttemptTimeout         = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan ClientCircuitBreakerSampling = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan ClientTotalTimeout           = TimeSpan.FromMinutes(10);
+
     public static IServiceCollection AddKekaServices(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -25,7 +31,12 @@ public static class KekaServiceExtensions
                 .AddStandardResilienceHandler();
 
         services.AddHttpClient(nameof(KekaClientService))
-                .AddStandardResilienceHandler();
+                .AddStandardResilienceHandler(options =>
+                {
+                    options.AttemptTimeout.Timeout = ClientAttemptTimeout;
+                    options.CircuitBreaker.SamplingDuration = ClientCircuitBreakerSampling;
+                    options.TotalRequestTimeout.Timeout = ClientTotalTimeout;
+                });
 
         services.AddHttpClient(nameof(KekaCurrencyService))
                 .AddStandardResilienceHandler();
