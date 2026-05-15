@@ -22,7 +22,7 @@ public sealed partial class Worker
                 LastUpdatedAt = syncStartedAt
             }, stoppingToken);
 
-            logger.LogInformation("Full company sync complete. {Count} companies entries saved, {Failed} failed.", syncedEntries.SyncedEntries, syncedEntries.FailedEntries);
+            logger.LogInformation("Full company sync complete. {Count} companies entries saved, {Failed} failed.", syncedEntries.SyncedEntries.Count, syncedEntries.FailedEntries.Count);
         }
         else
         {
@@ -54,7 +54,7 @@ public sealed partial class Worker
 
                 var retriedIds = retrySyncedEntries.Select(x => x.Id).ToList();
                 await syncStateService.RemoveFailedCompaniesAsync("Company", retriedIds, stoppingToken);
-                logger.LogInformation("Removed {Count} successfully retried companies from the failed list in DynamoDB.", retriedIds.Count);
+                logger.LogInformation("Removed {Count} synced failed companies from the failed list in DynamoDB.", retriedIds.Count);
             }
 
             logger.LogInformation("Failed companies sync completed. {retried} companies synced in keka. {failedCompanies} companies still failed to sync in keka.", retrySyncedEntries.Count, syncState.FailedCompanies.Count - retrySyncedEntries.Count);

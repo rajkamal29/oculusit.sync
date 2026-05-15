@@ -238,8 +238,8 @@ public sealed class DynamoDbSyncStateService(
 
         await dynamoDb.PutItemAsync(request, cancellationToken);
 
-        logger.LogInformation("Saved sync state for syncType={SyncType}, lastUpdatedAt={LastUpdatedAt}, companies={Companies}, failedCompanies={FailedCompanies}.",
-            state.SyncType, state.LastUpdatedAt, state.Companies.Count, state.FailedCompanies.Count);
+        logger.LogInformation("Saved sync state for syncType={SyncType}, lastUpdatedAt={LastUpdatedAt}.",
+            state.SyncType, state.LastUpdatedAt);
     }
 
     public async Task AppendCompanySyncStateAsync(
