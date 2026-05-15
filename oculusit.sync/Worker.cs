@@ -19,8 +19,8 @@ public sealed partial class Worker(
 
             var syncStartedAt = DateTime.UtcNow;
 
-            //await SyncMetadataAsync(syncStartedAt, stoppingToken);
-            //await SyncCompaniesAsync(syncStartedAt, stoppingToken);
+            await SyncMetadataAsync(syncStartedAt, stoppingToken);
+            await SyncCompaniesAsync(syncStartedAt, stoppingToken);
             await SyncProjectsAsync(syncStartedAt, stoppingToken);
 
             logger.LogInformation("Sync complete. Worker shutting down.");
