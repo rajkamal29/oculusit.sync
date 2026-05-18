@@ -4,6 +4,7 @@ using oculusit.sync.core.models;
 using oculusit.sync.keka.modules;
 using oculusit.sync.keka.services;
 using oculusit.sync.orchestration.mappings;
+using Polly.Timeout;
 
 namespace oculusit.sync.orchestration.services;
 
@@ -60,6 +61,7 @@ public sealed class ProjectOrchestrationService(
 
         var syncedEntries = new List<SyncedProjectEntry>();
         var failedEntries = new List<FailedProjectEntry>();
+        var retryEntries  = new List<RetryProjectEntry>();
 
         foreach (var project in projects)
         {
@@ -134,6 +136,19 @@ public sealed class ProjectOrchestrationService(
                     });
                 }
             }
+            catch (TimeoutRejectedException tex)
+            {
+                logger.LogWarning(tex,
+                    "Timeout syncing ConnectWise project {ProjectId} - {ProjectName} to Keka.",
+                    project.Id, project.Name);
+                failed++;
+                retryEntries.Add(new RetryProjectEntry
+                {
+                    Id           = project.Id.ToString(),
+                    Name         = project.Name ?? string.Empty,
+                    ErrorMessage = tex.Message
+                });
+            }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to sync ConnectWise project {ProjectId} - {ProjectName} to Keka.",
@@ -154,8 +169,10 @@ public sealed class ProjectOrchestrationService(
 
         return new ProjectSyncResult
         {
-            SyncedEntries = syncedEntries,
-            FailedEntries = failedEntries,
+            SyncedEntries       = syncedEntries,
+            FailedEntries       = failedEntries,
+            RetryEntries        = retryEntries,
+            LastRecordUpdatedAt = projects[^1].LastUpdated,
             Total     = projects.Count,
             Succeeded = created + updated,
             Failed    = failed
@@ -200,6 +217,7 @@ public sealed class ProjectOrchestrationService(
         // Only newly created entries are returned — updates carry forward the existing entry.
         var newEntries    = new List<SyncedProjectEntry>();
         var failedEntries = new List<FailedProjectEntry>();
+        var retryEntries  = new List<RetryProjectEntry>();
 
         foreach (var project in projects)
         {
@@ -288,6 +306,19 @@ public sealed class ProjectOrchestrationService(
                     });
                 }
             }
+            catch (TimeoutRejectedException tex)
+            {
+                logger.LogWarning(tex,
+                    "Incremental: Timeout syncing ConnectWise project {ProjectId} - {ProjectName} to Keka.",
+                    project.Id, project.Name);
+                failed++;
+                retryEntries.Add(new RetryProjectEntry
+                {
+                    Id           = project.Id.ToString(),
+                    Name         = project.Name ?? string.Empty,
+                    ErrorMessage = tex.Message
+                });
+            }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Incremental: Failed to sync ConnectWise project {ProjectId} - {ProjectName} to Keka.",
@@ -308,8 +339,10 @@ public sealed class ProjectOrchestrationService(
 
         return new ProjectSyncResult
         {
-            SyncedEntries = newEntries,
-            FailedEntries = failedEntries,
+            SyncedEntries       = newEntries,
+            FailedEntries       = failedEntries,
+            RetryEntries        = retryEntries,
+            LastRecordUpdatedAt = projects[^1].LastUpdated,
             Total     = projects.Count,
             Succeeded = created + updated,
             Failed    = failed

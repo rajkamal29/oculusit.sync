@@ -29,6 +29,18 @@ public interface ISyncStateService
     Task SaveFailedCompaniesAsync(IReadOnlyList<FailedCompanyEntry> failedEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Overwrites the <c>companies</c> attribute on the <c>Retry</c> record with companies that timed out this run.
+    /// Pass an empty list to clear after a clean run.
+    /// </summary>
+    Task SaveRetryCompaniesAsync(IReadOnlyList<RetryCompanyEntry> retryEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Overwrites the <c>projects</c> attribute on the <c>Retry</c> record with projects that timed out this run.
+    /// Pass an empty list to clear after a clean run.
+    /// </summary>
+    Task SaveRetryProjectsAsync(IReadOnlyList<RetryProjectEntry> retryEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Overwrites the <c>summary</c> attribute on the <c>Company</c> record with the latest run counts.
     /// </summary>
     Task SaveCompanySummaryAsync(CompanySyncSummary summary, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);

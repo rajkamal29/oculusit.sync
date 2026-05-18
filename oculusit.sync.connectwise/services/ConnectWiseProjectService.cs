@@ -24,7 +24,7 @@ public sealed class ConnectWiseProjectService(
         var results = await FetchPagedAsync<ConnectWiseProject>(
             relativeUrlBase: "/project/projects",
             fields: Fields,
-            orderBy: "id asc",
+            orderBy: "lastUpdated asc",
             conditions: null,
             pageSize: Config.PageSize,
             cancellationToken: cancellationToken);

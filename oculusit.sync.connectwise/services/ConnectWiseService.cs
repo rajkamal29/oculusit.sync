@@ -19,6 +19,9 @@ public sealed class ConnectWiseService(
     private readonly ConnectWiseProjectService _projects = new(httpClientFactory, config,
         Microsoft.Extensions.Logging.Abstractions.NullLogger<ConnectWiseProjectService>.Instance);
 
+    private readonly ConnectWiseTimeEntryService _timeEntries = new(httpClientFactory, config,
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<ConnectWiseTimeEntryService>.Instance);
+
     public Task<IReadOnlyList<ConnectWiseCompany>> GetAllCompaniesAsync(CancellationToken cancellationToken = default)
         => _companies.GetAllCompaniesAsync(cancellationToken);
 
@@ -33,4 +36,9 @@ public sealed class ConnectWiseService(
 
     public Task<IReadOnlyList<ConnectWiseProjectStatus>> GetAllProjectStatusesAsync(CancellationToken cancellationToken = default)
         => _projects.GetAllProjectStatusesAsync(cancellationToken);
+
+    public Task<IReadOnlyList<ConnectWiseTimeEntry>> GetTimeEntriesForDayAsync(
+        DateOnly date,
+        CancellationToken cancellationToken = default)
+        => _timeEntries.GetTimeEntriesForDayAsync(date, cancellationToken);
 }

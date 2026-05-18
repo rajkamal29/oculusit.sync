@@ -112,6 +112,38 @@ public sealed class FailedCompanyEntry
     public string ErrorMessage { get; init; } = string.Empty;
 }
 
+/// <summary>
+/// Records a ConnectWise company that timed out during sync.
+/// Stored under the <c>Retry</c> syncType so it can be retried on the next run.
+/// </summary>
+public sealed class RetryCompanyEntry
+{
+    /// <summary>ConnectWise company ID.</summary>
+    public string Id { get; init; } = string.Empty;
+
+    /// <summary>ConnectWise company name.</summary>
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>Timeout message captured from the exception.</summary>
+    public string ErrorMessage { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Records a ConnectWise project that timed out during sync.
+/// Stored under the <c>Retry</c> syncType so it can be retried on the next run.
+/// </summary>
+public sealed class RetryProjectEntry
+{
+    /// <summary>ConnectWise project ID.</summary>
+    public string Id { get; init; } = string.Empty;
+
+    /// <summary>ConnectWise project name.</summary>
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>Timeout message captured from the exception.</summary>
+    public string ErrorMessage { get; init; } = string.Empty;
+}
+
 /// <summary>Records a metadata sync failure from the most recent run.</summary>
 public sealed class FailedMetadataEntry
 {

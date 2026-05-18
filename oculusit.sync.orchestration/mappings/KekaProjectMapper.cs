@@ -51,26 +51,43 @@ public static class KekaProjectMapper
     }
 
     /// <summary>
-    /// Validates that both <see cref="ConnectWiseProject.ActualStart"/> and
-    /// <see cref="ConnectWiseProject.ActualEnd"/> are present.
-    /// Throws <see cref="InvalidOperationException"/> with a descriptive message when either is null.
+    /// Resolves start and end dates for the project using the following priority:
+    /// <list type="number">
+    ///   <item>ActualStart / ActualEnd when both are present.</item>
+    ///   <item>EstimatedStart / EstimatedEnd when either actual date is missing.</item>
+    /// </list>
+    /// Throws <see cref="InvalidOperationException"/> when the resolved estimated dates are also null.
     /// </summary>
     /// <returns>A tuple of (startDate, endDate) when both values are valid.</returns>
     private static (DateTime startDate, DateTime endDate) ValidateDates(ConnectWiseProject project)
     {
+        DateTime? startDate;
+        DateTime? endDate;
+
+        if (project.ActualStart.HasValue && project.ActualEnd.HasValue)
+        {
+            startDate = project.ActualStart;
+            endDate   = project.ActualEnd;
+        }
+        else
+        {
+            startDate = project.EstimatedStart;
+            endDate   = project.EstimatedEnd;
+        }
+
         var invalidFields = new List<string>();
 
-        if (project.ActualStart is null)
-            invalidFields.Add("ActualStart");
+        if (startDate is null)
+            invalidFields.Add("EstimatedStart");
 
-        if (project.ActualEnd is null)
-            invalidFields.Add("ActualEnd");
+        if (endDate is null)
+            invalidFields.Add("EstimatedEnd");
 
         if (invalidFields.Count > 0)
             throw new InvalidOperationException(
                 $"Project {project.Id} - '{project.Name}' has an invalid or missing date field(s): {string.Join(", ", invalidFields)}.");
 
-        return (project.ActualStart!.Value, project.ActualEnd!.Value);
+        return (startDate!.Value, endDate!.Value);
     }
 
     /// <summary>

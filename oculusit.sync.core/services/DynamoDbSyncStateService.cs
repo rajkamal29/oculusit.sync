@@ -460,6 +460,92 @@ public sealed class DynamoDbSyncStateService(
             summary.Total, summary.Succeeded, summary.Failed, lastUpdatedAt);
     }
 
+    public async Task SaveRetryCompaniesAsync(
+        IReadOnlyList<RetryCompanyEntry> retryEntries,
+        DateTime lastUpdatedAt,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogDebug("Saving {Count} retry company entries to DynamoDB (syncType={SyncType}).", retryEntries.Count, SyncTypes.Retry);
+
+        var items = retryEntries.Select(c => new AttributeValue
+        {
+            M = new Dictionary<string, AttributeValue>
+            {
+                [IdAttribute]           = new AttributeValue { S = c.Id },
+                [NameAttribute]         = new AttributeValue { S = c.Name },
+                [ErrorMessageAttribute] = new AttributeValue { S = c.ErrorMessage }
+            }
+        }).ToList();
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.Retry }
+            },
+            UpdateExpression = "SET #companies = :companies, #lastUpdatedAt = :lastUpdatedAt",
+            ExpressionAttributeNames = new Dictionary<string, string>
+            {
+                ["#companies"]     = CompaniesAttribute,
+                ["#lastUpdatedAt"] = LastUpdatedAtAttribute
+            },
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":companies"]     = new AttributeValue { L = items },
+                [":lastUpdatedAt"] = new AttributeValue { S = lastUpdatedAt.ToString("o") }
+            }
+        };
+
+        await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
+
+        logger.LogInformation("Saved {Count} retry company entries to Retry record, lastUpdatedAt={LastUpdatedAt}.",
+            retryEntries.Count, lastUpdatedAt);
+    }
+
+    public async Task SaveRetryProjectsAsync(
+        IReadOnlyList<RetryProjectEntry> retryEntries,
+        DateTime lastUpdatedAt,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogDebug("Saving {Count} retry project entries to DynamoDB (syncType={SyncType}).", retryEntries.Count, SyncTypes.Retry);
+
+        var items = retryEntries.Select(p => new AttributeValue
+        {
+            M = new Dictionary<string, AttributeValue>
+            {
+                [IdAttribute]           = new AttributeValue { S = p.Id },
+                [NameAttribute]         = new AttributeValue { S = p.Name },
+                [ErrorMessageAttribute] = new AttributeValue { S = p.ErrorMessage }
+            }
+        }).ToList();
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.Retry }
+            },
+            UpdateExpression = "SET #projects = :projects, #lastUpdatedAt = :lastUpdatedAt",
+            ExpressionAttributeNames = new Dictionary<string, string>
+            {
+                ["#projects"]      = ProjectsAttribute,
+                ["#lastUpdatedAt"] = LastUpdatedAtAttribute
+            },
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":projects"]      = new AttributeValue { L = items },
+                [":lastUpdatedAt"] = new AttributeValue { S = lastUpdatedAt.ToString("o") }
+            }
+        };
+
+        await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
+
+        logger.LogInformation("Saved {Count} retry project entries to Retry record, lastUpdatedAt={LastUpdatedAt}.",
+            retryEntries.Count, lastUpdatedAt);
+    }
+
     public async Task SaveMetadataAsync(
         IReadOnlyList<ProjectStatusEntry> entries,
         DateTime lastUpdatedAt,

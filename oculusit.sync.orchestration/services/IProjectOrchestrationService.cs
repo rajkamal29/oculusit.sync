@@ -33,6 +33,16 @@ public sealed class ProjectSyncResult
     public IReadOnlyList<SyncedProjectEntry> SyncedEntries { get; init; } = [];
     public IReadOnlyList<FailedProjectEntry> FailedEntries { get; init; } = [];
 
+    /// <summary>Projects that timed out — stored under the Retry syncType for next-run retry.</summary>
+    public IReadOnlyList<RetryProjectEntry> RetryEntries { get; init; } = [];
+
+    /// <summary>
+    /// The <c>lastUpdated</c> value of the last record fetched from ConnectWise, ordered ascending.
+    /// Used as <c>LastUpdatedAt</c> in DynamoDB so the next incremental run starts exactly from here.
+    /// Falls back to the worker's <c>syncStartedAt</c> when no records were fetched.
+    /// </summary>
+    public DateTime? LastRecordUpdatedAt { get; init; }
+
     /// <summary>Total projects processed in this run.</summary>
     public int Total { get; init; }
 

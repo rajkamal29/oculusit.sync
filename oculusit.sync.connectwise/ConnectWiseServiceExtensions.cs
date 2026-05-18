@@ -19,6 +19,7 @@ public static class ConnectWiseServiceExtensions
 
         services.AddSingleton<IConnectWiseCompanyService, ConnectWiseCompanyService>();
         services.AddSingleton<IConnectWiseProjectService, ConnectWiseProjectService>();
+        services.AddSingleton<IConnectWiseTimeEntryService, ConnectWiseTimeEntryService>();
 
         return services;
     }

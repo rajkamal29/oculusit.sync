@@ -22,7 +22,7 @@ public sealed class ConnectWiseCompanyService(
         var results = await FetchPagedAsync<ConnectWiseCompany>(
             relativeUrlBase: "/company/companies",
             fields: Fields,
-            orderBy: "id asc",
+            orderBy: "lastUpdated asc",
             conditions: null,
             pageSize: Config.PageSize,
             cancellationToken: cancellationToken);

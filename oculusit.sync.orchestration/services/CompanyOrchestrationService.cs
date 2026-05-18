@@ -4,6 +4,7 @@ using oculusit.sync.core.models;
 using oculusit.sync.keka.modules;
 using oculusit.sync.keka.services;
 using oculusit.sync.orchestration.mappings;
+using Polly.Timeout;
 
 namespace oculusit.sync.orchestration.services;
 
@@ -40,6 +41,7 @@ public sealed class CompanyOrchestrationService(
 
         var syncedEntries = new List<SyncedCompanyEntry>();
         var failedCompaniesEntries = new List<FailedCompanyEntry>();
+        var retryEntries = new List<RetryCompanyEntry>();
 
         foreach (var company in companies)
         {
@@ -75,6 +77,19 @@ public sealed class CompanyOrchestrationService(
                     ClientId = existing.Id
                 });
             }
+            catch (TimeoutRejectedException tex)
+            {
+                logger.LogWarning(tex,
+                    "Timeout syncing ConnectWise company {CompanyId} - {CompanyName} to Keka.",
+                    company.Id, company.Name);
+                failed++;
+                retryEntries.Add(new RetryCompanyEntry
+                {
+                    Id           = company.Id.ToString(),
+                    Name         = company.Name ?? string.Empty,
+                    ErrorMessage = tex.Message
+                });
+            }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to sync ConnectWise company {CompanyId} - {CompanyName} to Keka",
@@ -95,8 +110,10 @@ public sealed class CompanyOrchestrationService(
 
         return new CompanySyncResult
         {
-            SyncedEntries = syncedEntries,
-            FailedEntries = failedCompaniesEntries,
+            SyncedEntries       = syncedEntries,
+            FailedEntries       = failedCompaniesEntries,
+            RetryEntries        = retryEntries,
+            LastRecordUpdatedAt = companies[^1].LastUpdated,
             Total     = companies.Count,
             Succeeded = created + updated,
             Failed    = failed
@@ -130,6 +147,7 @@ public sealed class CompanyOrchestrationService(
         // Only newly created entries are returned — updates don't change the mapping.
         var newEntries = new List<SyncedCompanyEntry>();
         var failedCompaniesEntries = new List<FailedCompanyEntry>();
+        var retryEntries = new List<RetryCompanyEntry>();
 
         foreach (var company in companies)
         {
@@ -163,6 +181,19 @@ public sealed class CompanyOrchestrationService(
                     });
                 }
             }
+            catch (TimeoutRejectedException tex)
+            {
+                logger.LogWarning(tex,
+                    "Incremental: Timeout syncing ConnectWise company {CompanyId} - {CompanyName} to Keka.",
+                    company.Id, company.Name);
+                failed++;
+                retryEntries.Add(new RetryCompanyEntry
+                {
+                    Id           = company.Id.ToString(),
+                    Name         = company.Name ?? string.Empty,
+                    ErrorMessage = tex.Message
+                });
+            }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Incremental: Failed to sync ConnectWise company {CompanyId} - {CompanyName} to Keka",
@@ -183,8 +214,10 @@ public sealed class CompanyOrchestrationService(
 
         return new CompanySyncResult
         {
-            SyncedEntries = newEntries,
-            FailedEntries = failedCompaniesEntries,
+            SyncedEntries       = newEntries,
+            FailedEntries       = failedCompaniesEntries,
+            RetryEntries        = retryEntries,
+            LastRecordUpdatedAt = companies[^1].LastUpdated,
             Total     = companies.Count,
             Succeeded = created + updated,
             Failed    = failed

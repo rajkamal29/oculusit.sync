@@ -1,3 +1,4 @@
+using oculusit.sync.connectwise.services;
 using oculusit.sync.core.interfaces;
 using oculusit.sync.orchestration;
 
@@ -9,6 +10,7 @@ public sealed partial class Worker(
     ICompanyOrchestrationService companyOrchestration,
     IProjectOrchestrationService projectOrchestration,
     IMetadataOrchestrationService metadataOrchestration,
+    IConnectWiseTimeEntryService connectWiseTimeEntryService,
     ISyncStateService syncStateService) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -22,6 +24,7 @@ public sealed partial class Worker(
             await SyncMetadataAsync(syncStartedAt, stoppingToken);
             await SyncCompaniesAsync(syncStartedAt, stoppingToken);
             await SyncProjectsAsync(syncStartedAt, stoppingToken);
+            await SyncTimeEntriesSmokeAsync(stoppingToken);
 
             logger.LogInformation("Sync complete. Worker shutting down.");
         }
