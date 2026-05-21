@@ -30,4 +30,15 @@ public interface IKekaProjectService
     /// Used to skip creation of tasks whose name already exists in Keka.
     /// </summary>
     Task<IReadOnlyList<KekaTask>> GetTasksByProjectAsync(string projectId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a Keka project allocation for a specific project.
+    /// Returns the Keka allocation identifier.
+    /// </summary>
+    Task<string> CreateProjectAllocationAsync(string projectId, KekaProjectAllocationRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets allocations for a Keka PSA project by Keka project ID.
+    /// </summary>
+    Task<KekaProjectAllocationListResponse> GetProjectAllocationsAsync(string projectId, CancellationToken cancellationToken = default);
 }

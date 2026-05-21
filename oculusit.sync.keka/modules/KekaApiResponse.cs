@@ -130,7 +130,6 @@ internal sealed class KekaCreateTaskResponse
     public string? Data { get; init; }
 }
 
-
 /// <summary>
 /// Wraps the Keka API response for fetching employee by email.
 /// </summary>
@@ -147,4 +146,116 @@ internal sealed class KekaGetEmployeeResponse
 
     [JsonPropertyName("errors")]
     public IReadOnlyList<string>? Errors { get; init; }
+}
+
+/// <summary>
+/// Represents a Keka project allocation.
+/// </summary>
+public sealed class KekaProjectAllocation
+{
+    [JsonPropertyName("id")]
+    public string Id { get; init; } = string.Empty;
+
+    [JsonPropertyName("employee")]
+    public KekaProjectAllocationEmployee? Employee { get; init; }
+
+    [JsonPropertyName("startDate")]
+    public DateTime StartDate { get; init; }
+
+    [JsonPropertyName("endDate")]
+    public DateTime? EndDate { get; init; }
+
+    [JsonPropertyName("allocationPercentage")]
+    public int AllocationPercentage { get; init; }
+
+    [JsonPropertyName("billingRole")]
+    public KekaProjectAllocationBillingRole? BillingRole { get; init; }
+
+    [JsonPropertyName("billingRate")]
+    public KekaProjectAllocationBillingRate? BillingRate { get; init; }
+
+    [JsonPropertyName("billingType")]
+    public int BillingType { get; init; }
+
+    [JsonPropertyName("isShadow")]
+    public bool IsShadow { get; init; }
+}
+
+public sealed class KekaProjectAllocationEmployee
+{
+    [JsonPropertyName("id")]
+    public string Id { get; init; } = string.Empty;
+
+    [JsonPropertyName("firstName")]
+    public string? FirstName { get; init; }
+
+    [JsonPropertyName("lastName")]
+    public string? LastName { get; init; }
+
+    [JsonPropertyName("email")]
+    public string? Email { get; init; }
+}
+
+public sealed class KekaProjectAllocationBillingRole
+{
+    [JsonPropertyName("id")]
+    public string Id { get; init; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string? Name { get; init; }
+}
+
+public sealed class KekaProjectAllocationBillingRate
+{
+    [JsonPropertyName("unit")]
+    public int Unit { get; init; }
+
+    [JsonPropertyName("rate")]
+    public double Rate { get; init; }
+}
+
+public sealed class KekaProjectAllocationListResponse
+{
+    [JsonPropertyName("data")]
+    public List<KekaProjectAllocation>? Data { get; init; }
+
+    [JsonPropertyName("pageNumber")]
+    public int PageNumber { get; init; }
+
+    [JsonPropertyName("pageSize")]
+    public int PageSize { get; init; }
+
+    [JsonPropertyName("totalPages")]
+    public int TotalPages { get; init; }
+
+    [JsonPropertyName("totalRecords")]
+    public int TotalRecords { get; init; }
+
+    [JsonPropertyName("succeeded")]
+    public bool Succeeded { get; init; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; init; }
+
+    [JsonPropertyName("errors")]
+    public IReadOnlyList<string>? Errors { get; init; }
+}
+
+/// <summary>
+/// Wraps the Keka API response for project allocation creation.
+/// data contains the newly created allocation identifier.
+/// </summary>
+public sealed class KekaCreateProjectAllocationResponse
+{
+    [JsonPropertyName("succeeded")]
+    public bool Succeeded { get; init; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; init; }
+
+    [JsonPropertyName("errors")]
+    public IReadOnlyList<string> Errors { get; init; } = [];
+
+    [JsonPropertyName("data")]
+    public string? Data { get; init; }
 }

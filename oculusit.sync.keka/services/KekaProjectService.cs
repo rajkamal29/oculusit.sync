@@ -242,4 +242,96 @@ public sealed class KekaProjectService(
         _logger.LogInformation("Fetched {Count} existing tasks for Keka project {ProjectId}.", tasks.Count, projectId);
         return tasks;
     }
+
+    public async Task<string> CreateProjectAllocationAsync(
+        string projectId,
+        KekaProjectAllocationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await SetAuthHeaderAsync(cancellationToken);
+
+        var uri = BuildUri($"/psa/projects/{projectId}/allocations");
+        _logger.LogDebug("Creating Keka project allocation for project {ProjectId}, employee {EmployeeId}.",
+            projectId, request.EmployeeId);
+
+        var response = await _httpClient.PostAsJsonAsync(uri, request, _jsonOptions, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            _logger.LogWarning("Received 401 creating Keka project allocation for project {ProjectId}. Refreshing token.", projectId);
+            await RefreshAuthHeaderAsync(cancellationToken);
+            response = await _httpClient.PostAsJsonAsync(uri, request, _jsonOptions, cancellationToken);
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("Failed to create Keka project allocation for project {ProjectId}. StatusCode: {StatusCode}, Body: {Body}",
+                projectId, response.StatusCode, errorBody);
+            throw new HttpRequestException(
+                $"Keka POST /psa/projects/{projectId}/allocations failed ({(int)response.StatusCode}): {errorBody}",
+                null, response.StatusCode);
+        }
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<KekaCreateProjectAllocationResponse>(_jsonOptions, cancellationToken);
+
+        if (envelope is null || !envelope.Succeeded || string.IsNullOrEmpty(envelope.Data))
+        {
+            var errors = envelope?.Errors is { Count: > 0 } e ? string.Join(", ", e) : "none";
+            throw new InvalidOperationException(
+                $"Keka create project allocation for project '{projectId}' failed. Message: {envelope?.Message}. Errors: {errors}");
+        }
+
+        _logger.LogInformation("Successfully created Keka project allocation {AllocationId} for project {ProjectId}.",
+            envelope.Data, projectId);
+        return envelope.Data;
+    }
+
+    public async Task<IReadOnlyList<KekaProjectAllocation> GetProjectAllocationsAsync(string projectId, CancellationToken cancellationToken = default)
+    {
+        await SetAuthHeaderAsync(cancellationToken);
+
+        var allAllocations = new List<KekaProjectAllocation>();
+        var pageNumber = 1;
+
+        while (true)
+        {
+            var uri = new Uri(BuildUri($"/psa/projects/{projectId}/allocations"), $"?pageNumber={pageNumber}");
+            _logger.LogDebug("Fetching allocations for Keka project {ProjectId}, page {PageNumber}.", projectId, pageNumber);
+
+            var response = await _httpClient.GetAsync(uri, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                _logger.LogWarning("Received 401 fetching allocations for Keka project {ProjectId}, page {PageNumber}. Refreshing token.", projectId, pageNumber);
+                await RefreshAuthHeaderAsync(cancellationToken);
+                response = await _httpClient.GetAsync(uri, cancellationToken);
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("Failed to fetch allocations for Keka project {ProjectId}, page {PageNumber}. StatusCode: {StatusCode}, Body: {Body}",
+                    projectId, pageNumber, response.StatusCode, errorBody);
+                throw new HttpRequestException(
+                    $"Keka GET /psa/projects/{projectId}/allocations?pageNumber={pageNumber} failed ({(int)response.StatusCode}): {errorBody}",
+                    null, response.StatusCode);
+            }
+
+            var envelope = await response.Content
+                .ReadFromJsonAsync<KekaProjectAllocationListResponse>(_jsonOptions, cancellationToken);
+
+            if (envelope?.Data is { Count: > 0 })
+                allAllocations.AddRange(envelope.Data);
+
+            if (pageNumber >= envelope?.TotalPages)
+                break;
+
+            pageNumber++;
+        }
+
+        _logger.LogInformation("Fetched {Count} allocations for Keka project {ProjectId}.", allAllocations.Count, projectId);
+        return allAllocations;
+    }
 }
