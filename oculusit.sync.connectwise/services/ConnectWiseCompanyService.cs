@@ -12,7 +12,7 @@ public sealed class ConnectWiseCompanyService(
     : ConnectWiseBaseService(httpClientFactory, config), IConnectWiseCompanyService
 {
     private const string Fields =
-        "id,identifier,name,status,type,addressLine1,addressLine2,city,state,zip,country,phoneNumber,faxNumber,website,invoiceCCEmailAddress,_info";
+        "id,identifier,name,status,type,addressLine1,addressLine2,city,state,zip,country,phoneNumber,faxNumber,website,invoiceCCEmailAddress,_info,dateAcquired";
 
     public async Task<IReadOnlyList<ConnectWiseCompany>> GetAllCompaniesAsync(
         CancellationToken cancellationToken = default)

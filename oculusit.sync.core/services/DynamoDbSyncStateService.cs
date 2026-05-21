@@ -17,11 +17,20 @@ public sealed class DynamoDbSyncStateService(
     private const string KeyAttribute              = "syncType";
     private const string LastUpdatedAtAttribute    = "lastUpdatedAt";
     private const string CompaniesAttribute        = "companies";
+    private const string InitialCompaniesAttribute = "initialCompanies";
     private const string ProjectsAttribute         = "projects";
+    private const string InitialProjectsAttribute  = "initialProjects";
     private const string FailedProjectsAttribute   = "failedProjects";
     private const string ProjectStatusesAttribute       = "projectStatuses";
     private const string FailedProjectStatusesAttribute = "failedProjectStatuses";
     private const string IdAttribute               = "id";
+    private const string CompanyIdAttribute        = "companyId";
+    private const string CompanyNameAttribute      = "companyName";
+    private const string ClientNameAttribute       = "clientName";
+    private const string CompanyCodeAttribute      = "companyCode";
+    private const string LegacyNameAttribute       = "name";
+    private const string ProjectIdAttribute        = "projectId";
+    private const string ProjectNameAttribute      = "projectName";
     private const string ClientIdAttribute         = "clientId";
     private const string KekaClientIdAttribute     = "kekaClientId";
     private const string KekaProjectIdAttribute    = "kekaProjectId";
@@ -81,6 +90,31 @@ public sealed class DynamoDbSyncStateService(
             }
         }
 
+        var initialCompanies = new List<InitialCompanyEntry>();
+        if (response.Item.TryGetValue(InitialCompaniesAttribute, out var initialCompaniesAttr) && initialCompaniesAttr.L is { Count: > 0 })
+        {
+            foreach (var entry in initialCompaniesAttr.L)
+            {
+                if (entry.M is null) continue;
+                entry.M.TryGetValue(CompanyIdAttribute, out var companyIdAttr);
+                entry.M.TryGetValue(CompanyNameAttribute, out var companyNameAttr);
+                entry.M.TryGetValue(ClientIdAttribute, out var clientIdAttr);
+                entry.M.TryGetValue(CompanyCodeAttribute, out var clientCodeAttr);
+                entry.M.TryGetValue(ClientNameAttribute, out var clientNameAttr);
+                if (string.IsNullOrWhiteSpace(clientNameAttr?.S) && entry.M.TryGetValue(LegacyNameAttribute, out var legacyNameAttr))
+                    clientNameAttr = legacyNameAttr;
+
+                initialCompanies.Add(new InitialCompanyEntry
+                {
+                    CompanyId   = companyIdAttr?.S ?? string.Empty,
+                    CompanyName = companyNameAttr?.S ?? string.Empty,
+                    ClientId    = clientIdAttr?.S ?? string.Empty,
+                    ClientCode  = clientCodeAttr?.S ?? string.Empty,
+                    ClientName  = clientNameAttr?.S ?? string.Empty
+                });
+            }
+        }
+
         var projects = new List<SyncedProjectEntry>();
         if (response.Item.TryGetValue(ProjectsAttribute, out var projectsAttr) && projectsAttr.L is { Count: > 0 })
         {
@@ -105,12 +139,39 @@ public sealed class DynamoDbSyncStateService(
             }
         }
 
+        var initialProjects = new List<InitialProjectEntry>();
+        if (response.Item.TryGetValue(InitialProjectsAttribute, out var initialProjectsAttr) && initialProjectsAttr.L is { Count: > 0 })
+        {
+            foreach (var entry in initialProjectsAttr.L)
+            {
+                if (entry.M is null) continue;
+                entry.M.TryGetValue(ProjectIdAttribute, out var projectIdAttr);
+                entry.M.TryGetValue(ProjectNameAttribute, out var projectNameAttr);
+                entry.M.TryGetValue(KekaProjectIdAttribute, out var kekaProjectIdAttr);
+                entry.M.TryGetValue(CompanyCodeAttribute, out var kekaProjectCodeAttr);
+                entry.M.TryGetValue(ClientNameAttribute, out var kekaProjectNameAttr);
+                if (string.IsNullOrWhiteSpace(kekaProjectNameAttr?.S) && entry.M.TryGetValue(NameAttribute, out var legacyNameAttr))
+                    kekaProjectNameAttr = legacyNameAttr;
+
+                initialProjects.Add(new InitialProjectEntry
+                {
+                    ProjectId       = projectIdAttr?.S ?? string.Empty,
+                    ProjectName     = projectNameAttr?.S ?? string.Empty,
+                    KekaProjectId   = kekaProjectIdAttr?.S ?? string.Empty,
+                    KekaProjectCode = kekaProjectCodeAttr?.S ?? string.Empty,
+                    KekaProjectName = kekaProjectNameAttr?.S ?? string.Empty
+                });
+            }
+        }
+
         return new SyncState
         {
             SyncType              = syncType,
             LastUpdatedAt         = lastUpdatedAt,
             Companies             = companies,
+            InitialCompanies      = initialCompanies,
             Projects              = projects,
+            InitialProjects       = initialProjects,
             ProjectStatuses       = ReadProjectStatuses(response.Item),
             FailedProjectStatuses = ReadFailedMetadata(response.Item)
         };
@@ -143,6 +204,24 @@ public sealed class DynamoDbSyncStateService(
             };
         }
 
+        if (state.InitialCompanies.Count > 0)
+        {
+            item[InitialCompaniesAttribute] = new AttributeValue
+            {
+                L = state.InitialCompanies.Select(c => new AttributeValue
+                {
+                    M = new Dictionary<string, AttributeValue>
+                    {
+                        [CompanyIdAttribute]   = new AttributeValue { S = c.CompanyId },
+                        [CompanyNameAttribute] = new AttributeValue { S = c.CompanyName },
+                        [ClientIdAttribute]    = new AttributeValue { S = c.ClientId },
+                        [CompanyCodeAttribute] = new AttributeValue { S = c.ClientCode },
+                        [ClientNameAttribute]  = new AttributeValue { S = c.ClientName }
+                    }
+                }).ToList()
+            };
+        }
+
         if (state.Projects.Count > 0)
         {
             item[ProjectsAttribute] = new AttributeValue
@@ -160,6 +239,24 @@ public sealed class DynamoDbSyncStateService(
                         m[FailedTaskKeysAttribute] = new AttributeValue { SS = [.. p.FailedTaskKeys] };
 
                     return new AttributeValue { M = m };
+                }).ToList()
+            };
+        }
+
+        if (state.InitialProjects.Count > 0)
+        {
+            item[InitialProjectsAttribute] = new AttributeValue
+            {
+                L = state.InitialProjects.Select(p => new AttributeValue
+                {
+                    M = new Dictionary<string, AttributeValue>
+                    {
+                        [ProjectIdAttribute]    = new AttributeValue { S = p.ProjectId },
+                        [ProjectNameAttribute]  = new AttributeValue { S = p.ProjectName },
+                        [KekaProjectIdAttribute]= new AttributeValue { S = p.KekaProjectId },
+                        [CompanyCodeAttribute]  = new AttributeValue { S = p.KekaProjectCode },
+                        [ClientNameAttribute]   = new AttributeValue { S = p.KekaProjectName }
+                    }
                 }).ToList()
             };
         }
