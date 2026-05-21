@@ -288,7 +288,7 @@ public sealed class KekaProjectService(
         return envelope.Data;
     }
 
-    public async Task<IReadOnlyList<KekaProjectAllocation> GetProjectAllocationsAsync(string projectId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<KekaProjectAllocation>> GetProjectAllocationsAsync(string projectId, CancellationToken cancellationToken = default)
     {
         await SetAuthHeaderAsync(cancellationToken);
 

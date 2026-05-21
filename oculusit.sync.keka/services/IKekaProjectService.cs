@@ -40,5 +40,5 @@ public interface IKekaProjectService
     /// <summary>
     /// Gets allocations for a Keka PSA project by Keka project ID.
     /// </summary>
-    Task<KekaProjectAllocationListResponse> GetProjectAllocationsAsync(string projectId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<KekaProjectAllocation>> GetProjectAllocationsAsync(string projectId, CancellationToken cancellationToken = default);
 }
