@@ -12,8 +12,91 @@ public sealed class CompanyOrchestrationService(
     IConnectWiseCompanyService connectWiseService,
     IKekaClientService kekaClientService,
     IKekaCurrencyService kekaCurrencyService,
+    IKekaProjectService kekaProjectService,
     ILogger<CompanyOrchestrationService> logger) : ICompanyOrchestrationService
 {
+    public async Task<IReadOnlyList<InitialCompanyEntry>> BuildInitialCompanySnapshotAsync(CancellationToken cancellationToken = default)
+    {
+        var companies = await connectWiseService.GetAllCompaniesAsync(cancellationToken);
+        var clients = await kekaClientService.GetAllClientsAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Building initial company snapshot from {CompanyCount} ConnectWise companies and {ClientCount} Keka clients.",
+            companies.Count, clients.Count);
+
+        var snapshots = new List<InitialCompanyEntry>();
+
+        // CW company id -> company
+        var companiesById = companies
+            .GroupBy(c => c.Id.ToString())
+            .ToDictionary(g => g.Key, g => g.First());
+
+        // Keka client code -> first client (deterministic), with duplicate-code warning
+        var clientsByCode = new Dictionary<string, KekaClient>(StringComparer.OrdinalIgnoreCase);
+        foreach (var client in clients)
+        {
+            var code = client.Code?.Trim();
+            if (string.IsNullOrWhiteSpace(code))
+                continue;
+
+            if (!clientsByCode.TryAdd(code, client))
+            {
+                logger.LogWarning(
+                    "Duplicate Keka client code {Code} found. Keeping the first client and ignoring client {ClientId}.",
+                    code, client.Id);
+            }
+        }
+
+        // Left side: all ConnectWise companies
+        foreach (var company in companies)
+        {
+            var companyId = company.Id.ToString();
+
+            if (clientsByCode.TryGetValue(companyId, out var matchedClient))
+            {
+                snapshots.Add(new InitialCompanyEntry
+                {
+                    CompanyId   = companyId,
+                    CompanyName = company.Name ?? string.Empty,
+                    ClientId    = matchedClient.Id,
+                    ClientCode  = matchedClient.Code ?? string.Empty,
+                    ClientName  = matchedClient.Name ?? string.Empty
+                });
+            }
+            else
+            {
+                snapshots.Add(new InitialCompanyEntry
+                {
+                    CompanyId   = companyId,
+                    CompanyName = company.Name ?? string.Empty,
+                    ClientId    = string.Empty,
+                    ClientCode  = string.Empty,
+                    ClientName  = string.Empty
+                });
+            }
+        }
+
+        // Right-only side: Keka clients whose code doesn't match any CW company id.
+        foreach (var client in clients)
+        {
+            var code = client.Code?.Trim();
+            if (!string.IsNullOrWhiteSpace(code) && companiesById.ContainsKey(code))
+                continue;
+
+            snapshots.Add(new InitialCompanyEntry
+            {
+                CompanyId   = string.Empty,
+                CompanyName = string.Empty,
+                ClientId    = client.Id,
+                ClientCode  = code ?? string.Empty,
+                ClientName  = client.Name ?? string.Empty
+            });
+        }
+
+        logger.LogInformation("Initial company snapshot built with {Count} rows.", snapshots.Count);
+        return snapshots;
+    }
+
     public async Task<CompanySyncResult> SyncCompaniesToKekaAsync(CancellationToken cancellationToken = default)
     {
         var companies = await connectWiseService.GetAllCompaniesAsync(cancellationToken);
@@ -48,6 +131,7 @@ public sealed class CompanyOrchestrationService(
             try
             {
                 var request = KekaClientMapper.MapToKekaClientRequest(company, usdCurrencyId);
+                var companyDateEntered = company.DateEntered!.Value;
 
                 if (!kekaClientsByCode.TryGetValue(company.Id.ToString(), out var existing))
                 {
@@ -55,10 +139,14 @@ public sealed class CompanyOrchestrationService(
                     logger.LogInformation("Created Keka client for ConnectWise company {CompanyId} - {CompanyName}",
                         company.Id, company.Name);
                     created++;
+
+                    await CreateDefaultProjectAsync(company.Id.ToString(), kekaClientId, companyDateEntered, cancellationToken);
+
                     syncedEntries.Add(new SyncedCompanyEntry
                     {
-                        Id       = company.Id.ToString(),
-                        ClientId = kekaClientId
+                        Id          = company.Id.ToString(),
+                        ClientId    = kekaClientId,
+                        DateEntered = companyDateEntered
                     });
                     continue;
                 }
@@ -69,12 +157,15 @@ public sealed class CompanyOrchestrationService(
                     logger.LogInformation("Updated Keka client {KekaClientId} for ConnectWise company {CompanyId} - {CompanyName}",
                         existing.Id, company.Id, company.Name);
                     updated++;
+
+                    await CreateDefaultProjectAsync(company.Id.ToString(), existing.Id, companyDateEntered, cancellationToken);
                 }
-              
+
                 syncedEntries.Add(new SyncedCompanyEntry
                 {
-                    Id       = company.Id.ToString(),
-                    ClientId = existing.Id
+                    Id          = company.Id.ToString(),
+                    ClientId    = existing.Id,
+                    DateEntered = companyDateEntered
                 });
             }
             catch (TimeoutRejectedException tex)
@@ -155,6 +246,7 @@ public sealed class CompanyOrchestrationService(
             {
                 var request = KekaClientMapper.MapToKekaClientRequest(company, usdCurrencyId);
                 var companyIdStr = company.Id.ToString();
+                var companyDateEntered = company.DateEntered!.Value;
 
                 if (kekaIdByCompanyId.TryGetValue(companyIdStr, out var kekaClientId))
                 {
@@ -174,10 +266,14 @@ public sealed class CompanyOrchestrationService(
                         "Incremental: Created Keka client {KekaClientId} for ConnectWise company {CompanyId} - {CompanyName}",
                         newKekaClientId, company.Id, company.Name);
                     created++;
+
+                    await CreateDefaultProjectAsync(company.Id.ToString(), newKekaClientId, companyDateEntered, cancellationToken);
+
                     newEntries.Add(new SyncedCompanyEntry
                     {
-                        Id       = companyIdStr,
-                        ClientId = newKekaClientId
+                        Id          = companyIdStr,
+                        ClientId    = newKekaClientId,
+                        DateEntered = companyDateEntered
                     });
                 }
             }
@@ -222,5 +318,56 @@ public sealed class CompanyOrchestrationService(
             Succeeded = created + updated,
             Failed    = failed
         };
+    }
+
+    private static readonly (string Name, int TaskBillingType)[] DefaultTasks =
+    [
+        ("CW: Billable Charge Code",     1),
+        ("CW: Non-Billable Charge Code", 0),
+        ("CW: Billable Service Ticket",  1),
+        ("CW: Non-Billable Service Ticket", 0),
+    ];
+
+    private async Task CreateDefaultProjectAsync(
+        string companyId,
+        string kekaClientId,
+        DateTime startDate,
+        CancellationToken cancellationToken)
+    {
+        var endDate = startDate.AddYears(10);
+        var projectCode = $"{companyId}-CWDP";
+
+        var projectRequest = new KekaProjectRequest
+        {
+            ClientId   = kekaClientId,
+            Name       = "CW: Default Project",
+            Code       = projectCode,
+            Status     = 0,
+            StartDate  = startDate,
+            EndDate    = endDate,
+            IsBillable = true
+        };
+
+        var kekaProjectId = await kekaProjectService.CreateProjectAsync(projectRequest, cancellationToken);
+        logger.LogInformation(
+            "Created default Keka project {ProjectId} for client {ClientId}.",
+            kekaProjectId, kekaClientId);
+
+        foreach (var (taskName, billingType) in DefaultTasks)
+        {
+            var taskRequest = new KekaTaskRequest
+            {
+                ProjectId      = kekaProjectId,
+                Name           = taskName,
+                StartDate      = startDate,
+                EndDate        = endDate,
+                TaskBillingType = billingType
+            };
+
+            var taskId = await kekaProjectService.CreateTaskAsync(kekaProjectId, taskRequest, cancellationToken);
+            logger.LogInformation(
+                "Created default task '{TaskName}' ({TaskId}) under project {ProjectId}.",
+                taskName, taskId, kekaProjectId);
+        }
     }
 }

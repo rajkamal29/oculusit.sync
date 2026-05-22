@@ -8,8 +8,20 @@ public sealed class SyncState
     /// <summary>Company-to-Keka client mappings captured during the sync run.</summary>
     public IReadOnlyList<SyncedCompanyEntry> Companies { get; init; } = [];
 
+    /// <summary>
+    /// Initial full-outer-join snapshot between ConnectWise companies and Keka clients.
+    /// Stored under <c>SyncType = "InitialCompany"</c>.
+    /// </summary>
+    public IReadOnlyList<InitialCompanyEntry> InitialCompanies { get; init; } = [];
+
     /// <summary>Project mappings captured during the sync run.</summary>
     public IReadOnlyList<SyncedProjectEntry> Projects { get; init; } = [];
+
+    /// <summary>
+    /// Initial full-outer-join snapshot between ConnectWise projects and Keka projects.
+    /// Stored under <c>SyncType = "InitialProject"</c>.
+    /// </summary>
+    public IReadOnlyList<InitialProjectEntry> InitialProjects { get; init; } = [];
 
     /// <summary>Companies that failed to sync during the most recent run.</summary>
     public IReadOnlyList<FailedCompanyEntry> FailedCompanies { get; init; } = [];
@@ -64,6 +76,47 @@ public sealed class SyncedCompanyEntry
 
     /// <summary>Keka client ID.</summary>
     public string ClientId { get; init; } = string.Empty;
+
+    /// <summary>UTC date the company was created in ConnectWise (_info.dateEntered).</summary>
+    public DateTime? DateEntered { get; init; }
+}
+
+/// <summary>Records a synced ConnectWise project.</summary>
+public sealed class InitialCompanyEntry
+{
+    /// <summary>ConnectWise company ID.</summary>
+    public string CompanyId { get; init; } = string.Empty;
+
+    /// <summary>ConnectWise company name.</summary>
+    public string CompanyName { get; init; } = string.Empty;
+
+    /// <summary>Keka client ID.</summary>
+    public string ClientId { get; init; } = string.Empty;
+
+    /// <summary>Keka client code.</summary>
+    public string ClientCode { get; init; } = string.Empty;
+
+    /// <summary>Keka client name.</summary>
+    public string ClientName { get; init; } = string.Empty;
+}
+
+/// <summary>Records an initial full-outer-join row between ConnectWise and Keka projects.</summary>
+public sealed class InitialProjectEntry
+{
+    /// <summary>ConnectWise project ID.</summary>
+    public string ProjectId { get; init; } = string.Empty;
+
+    /// <summary>ConnectWise project name.</summary>
+    public string ProjectName { get; init; } = string.Empty;
+
+    /// <summary>Keka project ID.</summary>
+    public string KekaProjectId { get; init; } = string.Empty;
+
+    /// <summary>Keka project code.</summary>
+    public string KekaProjectCode { get; init; } = string.Empty;
+
+    /// <summary>Keka project name.</summary>
+    public string KekaProjectName { get; init; } = string.Empty;
 }
 
 /// <summary>Records a synced ConnectWise project.</summary>

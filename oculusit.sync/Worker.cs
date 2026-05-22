@@ -1,5 +1,6 @@
 using oculusit.sync.connectwise.services;
 using oculusit.sync.core.interfaces;
+using oculusit.sync.core.models;
 using oculusit.sync.orchestration;
 
 namespace oculusit.sync;
@@ -21,10 +22,21 @@ public sealed partial class Worker(
 
             var syncStartedAt = DateTime.UtcNow;
 
-            await SyncMetadataAsync(syncStartedAt, stoppingToken);
-            await SyncCompaniesAsync(syncStartedAt, stoppingToken);
-            await SyncProjectsAsync(syncStartedAt, stoppingToken);
-            await SyncTimeEntriesSmokeAsync(stoppingToken);
+            var initialCompanySyncState = await syncStateService.GetAsync(SyncTypes.InitialCompany, stoppingToken);
+            var initialProjectSyncState = await syncStateService.GetAsync(SyncTypes.InitialProject, stoppingToken);
+
+            if (initialCompanySyncState is not null && initialProjectSyncState is not null)
+            {
+                await SyncMetadataAsync(syncStartedAt, stoppingToken);
+                await SyncCompaniesAsync(syncStartedAt, stoppingToken);
+                await SyncProjectsAsync(syncStartedAt, stoppingToken);
+                await SyncTimeEntriesSmokeAsync(stoppingToken);                
+            }
+            else
+            {
+                await SyncInitialCompaniesSnapshotAsync(syncStartedAt, stoppingToken);
+                await SyncInitialProjectsSnapshotAsync(syncStartedAt, stoppingToken);
+            }
 
             logger.LogInformation("Sync complete. Worker shutting down.");
         }

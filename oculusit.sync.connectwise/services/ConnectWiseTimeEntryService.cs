@@ -14,7 +14,11 @@ public sealed class ConnectWiseTimeEntryService(
     : ConnectWiseBaseService(httpClientFactory, config), IConnectWiseTimeEntryService
 {
     private const string Fields =
-        "id,member,company,project,chargeToType,chargeToId,timeStart,timeEnd,hoursActual,billableOption,notes,_info";
+        "id,member,company,project,workRole,workType,chargeToType,chargeToId," +
+        "timeStart,timeEnd,hoursActual,hoursBilled,hoursDeduct,agreement,ticket,phase," +
+        "billableOption,taxable,invoiceId,enteredBy,enteredDate," +
+        "notes,internalNotes,emailResourceFlag,emailContactFlag,emailCcFlag," +
+        "hourlyRate,mobileGuid,_info,status";
 
     public async Task<IReadOnlyList<ConnectWiseTimeEntry>> GetTimeEntriesForDayAsync(
         DateOnly date,
@@ -43,6 +47,38 @@ public sealed class ConnectWiseTimeEntryService(
         logger.LogInformation(
             "Fetched {Count} ConnectWise time entries for UTC day {Date}.",
             results.Count, date);
+
+        return results;
+    }
+
+    public async Task<IReadOnlyList<ConnectWiseTimeEntry>> GetTimeEntriesForCompanyAndDayAsync(
+        int companyId,
+        DateOnly date,
+        CancellationToken cancellationToken = default)
+    {
+        var startUtc = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var endUtc = date.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+
+        logger.LogInformation(
+            "Fetching ConnectWise time entries for company {CompanyId} and UTC day {Date} ({StartUtc:o} to {EndUtc:o}).",
+            companyId, date, startUtc, endUtc);
+
+        var condition =
+            $"company/id = {companyId} AND timeStart >= [{startUtc:yyyy-MM-ddTHH:mm:ssZ}] AND timeStart <= [{endUtc:yyyy-MM-ddTHH:mm:ssZ}]";
+
+        var results = await FetchPagedAsync<ConnectWiseTimeEntry>(
+            relativeUrlBase: "/time/entries",
+            fields: Fields,
+            orderBy: "lastUpdated asc",
+            conditions: condition,
+            pageSize: Config.PageSize,
+            cancellationToken: cancellationToken);
+
+        await EnrichMemberEmailsAsync(results, cancellationToken);
+
+        logger.LogInformation(
+            "Fetched {Count} ConnectWise time entries for company {CompanyId} and UTC day {Date}.",
+            results.Count, companyId, date);
 
         return results;
     }

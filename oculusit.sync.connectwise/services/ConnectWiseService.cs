@@ -41,4 +41,10 @@ public sealed class ConnectWiseService(
         DateOnly date,
         CancellationToken cancellationToken = default)
         => _timeEntries.GetTimeEntriesForDayAsync(date, cancellationToken);
+
+    public Task<IReadOnlyList<ConnectWiseTimeEntry>> GetTimeEntriesForCompanyAndDayAsync(
+        int companyId,
+        DateOnly date,
+        CancellationToken cancellationToken = default)
+        => _timeEntries.GetTimeEntriesForCompanyAndDayAsync(companyId, date, cancellationToken);
 }
