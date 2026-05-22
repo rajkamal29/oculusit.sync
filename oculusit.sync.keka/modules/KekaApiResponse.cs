@@ -267,7 +267,7 @@ public sealed class KekaCreateProjectAllocationResponse
 public sealed class KekaAddTimesheetEntryResponse
 {
     [JsonPropertyName("data")]
-    public string? Data { get; init; }
+    public bool Data { get; init; }
 
     [JsonPropertyName("succeeded")]
     public bool Succeeded { get; init; }

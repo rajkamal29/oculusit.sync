@@ -41,16 +41,16 @@ public sealed class KekaTimesheetEntryService(
     private Uri BuildUri(string relativePath) =>
         new(new Uri(_config.ApiBaseUrl), $"/api/v1{relativePath}");
 
-    public async Task<string> CreateTimesheetEntryAsync(
+    public async Task<bool> CreateTimesheetEntryAsync(
         string employeeId,
-        KekaTimesheetEntryRequest request,
+        KekaTimesheetEntryBatchRequest request,
         CancellationToken cancellationToken = default)
     {
         await SetAuthHeaderAsync(cancellationToken);
 
         var uri = BuildUri($"/psa/employees/{employeeId}/timeentries");
-        _logger.LogDebug("Creating Keka timesheet entry for employee {EmployeeId}, project {ProjectId} and task {TaskId}.",
-            employeeId, request.ProjectId, request.TaskId);
+        _logger.LogDebug("Creating Keka timesheet entry for employee {EmployeeId}.",
+            employeeId);
 
         var response = await _httpClient.PostAsJsonAsync(uri, request, _jsonOptions, cancellationToken);
 
@@ -74,7 +74,7 @@ public sealed class KekaTimesheetEntryService(
         var envelope = await response.Content
             .ReadFromJsonAsync<KekaAddTimesheetEntryResponse>(_jsonOptions, cancellationToken);
 
-        if (envelope is null || !envelope.Succeeded || string.IsNullOrEmpty(envelope.Data))
+        if (envelope is null || !envelope.Succeeded)
         {
             var errors = envelope?.Errors is { Count: > 0 } e ? string.Join(", ", e) : "none";
             throw new InvalidOperationException(

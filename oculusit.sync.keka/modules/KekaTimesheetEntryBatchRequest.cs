@@ -2,6 +2,10 @@ using System.Text.Json.Serialization;
 
 namespace oculusit.sync.keka.modules;
 
+public sealed class KekaTimesheetEntryBatchRequest : List<KekaTimesheetEntryRequest> 
+{
+}
+
 public sealed class KekaTimesheetEntryRequest
 {
     [JsonPropertyName("projectId")]

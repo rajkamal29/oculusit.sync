@@ -7,8 +7,8 @@ public interface IKekaTimesheetEntryService
     /// <summary>
     /// Creates a Keka timesheet entry and returns the API response.
     /// </summary>
-    Task<string> CreateTimesheetEntryAsync(
+    Task<bool> CreateTimesheetEntryAsync(
         string employeeId,
-        KekaTimesheetEntryRequest request,
+        KekaTimesheetEntryBatchRequest request,
         CancellationToken cancellationToken = default);
 }
