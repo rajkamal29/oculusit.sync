@@ -90,3 +90,24 @@ public sealed class KekaBillingInfo
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public KekaBillingAddress? BillingAddress { get; init; }
 }
+
+public sealed class KekaBillingRole
+{
+    [JsonPropertyName("id")]
+    public string Id { get; init; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = string.Empty;
+
+    [JsonPropertyName("billingRate")]
+    public KekaBillingRate? BillingRate { get; init; }
+}
+
+public sealed class KekaBillingRate
+{
+    [JsonPropertyName("unit")]
+    public int Unit { get; init; }
+
+    [JsonPropertyName("rate")]
+    public decimal Rate { get; init; }
+}

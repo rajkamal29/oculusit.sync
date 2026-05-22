@@ -8,7 +8,6 @@ public static class SyncTypes
     public const string Company  = "Company";
     public const string Project  = "Project";
     public const string Metadata = "Metadata";
-    public const string BillingRole = "BillingRole";
 
     /// <summary>Dedicated record that logs all company sync failures with id, name, and error message.</summary>
     public const string Failures = "Failures";

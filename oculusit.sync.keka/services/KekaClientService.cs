@@ -204,4 +204,50 @@ public sealed class KekaClientService(
 
         _logger.LogInformation("Successfully updated Keka client {ClientId}", clientId);
     }
+
+    public async Task<IReadOnlyList<KekaBillingRole>> GetBillingRolesAsync(string clientId, CancellationToken cancellationToken = default)
+    {
+        await SetAuthHeaderAsync(cancellationToken);
+
+        var uri = BuildUri($"/psa/clients/{clientId}/billingroles");
+        _logger.LogDebug("Fetching billing roles for Keka client {ClientId}.", clientId);
+
+        var response = await _httpClient.GetAsync(uri, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            _logger.LogWarning("Received 401 fetching billing roles for Keka client {ClientId}. Refreshing token.", clientId);
+            await RefreshAuthHeaderAsync(cancellationToken);
+            response = await _httpClient.GetAsync(uri, cancellationToken);
+        }
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            _logger.LogWarning("Billing roles not found for Keka client {ClientId}.", clientId);
+            return [];
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("Failed to fetch billing roles for Keka client {ClientId}. StatusCode: {StatusCode}, Body: {Body}",
+                clientId, response.StatusCode, errorBody);
+            throw new HttpRequestException(
+                $"Keka GET /psa/clients/{clientId}/billingroles failed ({(int)response.StatusCode}): {errorBody}",
+                null, response.StatusCode);
+        }
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<KekaDataListResponse<KekaBillingRole>>(_jsonOptions, cancellationToken);
+
+        if (envelope is null || !envelope.Succeeded)
+        {
+            var errors = envelope?.Errors is { Count: > 0 } e ? string.Join(", ", e) : "none";
+            throw new InvalidOperationException(
+                $"Keka get billing roles for client '{clientId}' failed. Message: {envelope?.Message}. Errors: {errors}");
+        }
+
+        _logger.LogInformation("Successfully fetched {Count} billing role(s) for Keka client {ClientId}.", envelope.Data.Count, clientId);
+        return envelope.Data;
+    }
 }

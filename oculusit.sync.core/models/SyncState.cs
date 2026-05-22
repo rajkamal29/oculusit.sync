@@ -26,9 +26,6 @@ public sealed class SyncState
     /// <summary>Run-level summary for the Project sync — total processed, succeeded, and failed.</summary>
     public ProjectSyncSummary? ProjectSummary { get; init; }
 
-    /// <summary>Billing roles persisted under sync state (id and name only).</summary>
-    public IReadOnlyList<BillingRoleEntry> BillingRoles { get; init; } = [];
-
     /// <summary>UTC timestamp of the last successful sync completion.</summary>
     public DateTime? LastUpdatedAt { get; init; }
 }
@@ -165,12 +162,5 @@ public sealed class ProjectStatusEntry
 
     /// <summary>Mapped Keka value — set manually after initial insert; preserved on updates.</summary>
     public string MappedValue { get; init; } = string.Empty;
-}
-
-/// <summary>Billing role item stored in sync state (id and name only).</summary>
-public sealed class BillingRoleEntry
-{
-    public string Id { get; init; } = string.Empty;
-    public string Name { get; init; } = string.Empty;
 }
 

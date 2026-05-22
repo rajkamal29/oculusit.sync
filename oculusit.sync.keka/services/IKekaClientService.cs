@@ -24,4 +24,9 @@ public interface IKekaClientService
     /// Updates an existing Keka client by Keka client ID.
     /// </summary>
     Task UpdateClientAsync(string clientId, KekaClientUpdateRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all billing roles for a Keka client by client ID.
+    /// </summary>
+    Task<IReadOnlyList<KekaBillingRole>> GetBillingRolesAsync(string clientId, CancellationToken cancellationToken = default);
 }

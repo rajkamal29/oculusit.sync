@@ -18,7 +18,6 @@ public sealed class DynamoDbSyncStateService(
     private const string LastUpdatedAtAttribute    = "lastUpdatedAt";
     private const string CompaniesAttribute        = "companies";
     private const string ProjectsAttribute         = "projects";
-    private const string BillingRolesAttribute     = "billingRoles";
     private const string FailedProjectsAttribute   = "failedProjects";
     private const string ProjectStatusesAttribute       = "projectStatuses";
     private const string FailedProjectStatusesAttribute = "failedProjectStatuses";
@@ -106,29 +105,12 @@ public sealed class DynamoDbSyncStateService(
             }
         }
 
-        var billingRoles = new List<BillingRoleEntry>();
-        if (response.Item.TryGetValue(BillingRolesAttribute, out var billingRolesAttr) && billingRolesAttr.L is { Count: > 0 })
-        {
-            foreach (var entry in billingRolesAttr.L)
-            {
-                if (entry.M is null) continue;
-                entry.M.TryGetValue(IdAttribute, out var idAttr);
-                entry.M.TryGetValue(NameAttribute, out var nameAttr);
-                billingRoles.Add(new BillingRoleEntry
-                {
-                    Id = idAttr?.S ?? string.Empty,
-                    Name = nameAttr?.S ?? string.Empty
-                });
-            }
-        }
-
         return new SyncState
         {
             SyncType              = syncType,
             LastUpdatedAt         = lastUpdatedAt,
             Companies             = companies,
             Projects              = projects,
-            BillingRoles          = billingRoles,
             ProjectStatuses       = ReadProjectStatuses(response.Item),
             FailedProjectStatuses = ReadFailedMetadata(response.Item)
         };
