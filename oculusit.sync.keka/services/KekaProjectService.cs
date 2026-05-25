@@ -88,6 +88,53 @@ public sealed class KekaProjectService(
         return allProjects;
     }
 
+    public async Task<IReadOnlyList<KekaProject>> GetProjectsByClientIdAsync(string clientId, CancellationToken cancellationToken = default)
+    {
+        await SetAuthHeaderAsync(cancellationToken);
+
+        var allProjects = new List<KekaProject>();
+        var pageNumber = 1;
+        bool hasMoreItems;
+
+        do
+        {
+            var uri = new Uri(BuildUri("/psa/projects"), $"?clientIds={Uri.EscapeDataString(clientId)}&pageNumber={pageNumber}");
+            _logger.LogDebug("Fetching Keka projects for client {ClientId}, page {PageNumber}.", clientId, pageNumber);
+
+            var response = await _httpClient.GetAsync(uri, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                _logger.LogWarning("Received 401 fetching Keka projects for client {ClientId}, page {PageNumber}. Refreshing token.", clientId, pageNumber);
+                await RefreshAuthHeaderAsync(cancellationToken);
+                response = await _httpClient.GetAsync(uri, cancellationToken);
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("Failed to fetch Keka projects for client {ClientId}, page {PageNumber}. StatusCode: {StatusCode}, Body: {Body}",
+                    clientId, pageNumber, response.StatusCode, errorBody);
+                throw new HttpRequestException(
+                    $"Keka GET /psa/projects?clientId={clientId}&pageNumber={pageNumber} failed ({(int)response.StatusCode}): {errorBody}",
+                    null, response.StatusCode);
+            }
+
+            var envelope = await response.Content
+                .ReadFromJsonAsync<KekaDataListResponse<KekaProject>>(_jsonOptions, cancellationToken);
+
+            if (envelope?.Data is { Count: > 0 } page)
+                allProjects.AddRange(page);
+
+            hasMoreItems = pageNumber < envelope?.TotalPages;
+            pageNumber++;
+        }
+        while (hasMoreItems);
+
+        _logger.LogInformation("Fetched {Count} Keka projects for client {ClientId}.", allProjects.Count, clientId);
+        return allProjects;
+    }
+
     public async Task<string> CreateProjectAsync(KekaProjectRequest request, CancellationToken cancellationToken = default)
     {
         await SetAuthHeaderAsync(cancellationToken);
@@ -109,9 +156,7 @@ public sealed class KekaProjectService(
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogError("Failed to create Keka project. StatusCode: {StatusCode}, Body: {Body}",
                 response.StatusCode, errorBody);
-            throw new HttpRequestException(
-                $"Keka POST /psa/projects failed ({(int)response.StatusCode}): {errorBody}",
-                null, response.StatusCode);
+            return string.Empty;
         }
 
         var envelope = await response.Content

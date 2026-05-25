@@ -447,6 +447,8 @@ public sealed class ProjectOrchestrationService(
         CancellationToken cancellationToken)
     {
         var failedKeys = new List<string>();
+        var taskStartDate = startDate.Date;
+        var taskEndDate = endDate.Date;
 
         var definitionsByKey = ProjectTaskDefinitions.ToDictionary(t => t.Key, t => (t.Name, t.BillingType));
 
@@ -500,8 +502,8 @@ public sealed class ProjectOrchestrationService(
                     {
                         ProjectId       = kekaProjectId,
                         Name            = name,
-                        StartDate       = startDate,
-                        EndDate         = endDate,
+                        StartDate       = taskStartDate,
+                        EndDate         = taskEndDate,
                         TaskBillingType = billingType
                     },
                     cancellationToken);
