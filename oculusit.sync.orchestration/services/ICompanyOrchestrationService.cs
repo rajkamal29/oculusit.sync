@@ -22,6 +22,11 @@ public interface ICompanyOrchestrationService
     /// Returns only newly created company-to-client mappings and any failures.
     /// </summary>
     Task<CompanySyncResult> SyncCompaniesIncrementalAsync(SyncState syncState, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retries a specific set of ConnectWise company IDs before regular company sync.
+    /// </summary>
+    Task<CompanySyncResult> RetryCompaniesAsync(IReadOnlyList<string> companyIds, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Result returned by company sync operations.</summary>
@@ -32,6 +37,12 @@ public sealed class CompanySyncResult
 
     /// <summary>Companies that timed out — stored under the Retry syncType for next-run retry.</summary>
     public IReadOnlyList<RetryCompanyEntry> RetryEntries { get; init; } = [];
+
+    /// <summary>
+    /// Default project creation timeout records keyed by company/client.
+    /// Persisted under syncType DefaultProjectRetry for later retry.
+    /// </summary>
+    public IReadOnlyList<DefaultProjectRetryEntry> DefaultProjectRetryEntries { get; init; } = [];
 
     /// <summary>
     /// The <c>lastUpdated</c> value of the last record fetched from ConnectWise, ordered ascending.
