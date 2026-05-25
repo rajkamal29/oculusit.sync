@@ -29,16 +29,27 @@ public interface ISyncStateService
     Task SaveFailedCompaniesAsync(IReadOnlyList<FailedCompanyEntry> failedEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Overwrites the <c>companies</c> attribute on the <c>Retry</c> record with companies that timed out this run.
+    /// Overwrites the <c>companies</c> attribute on the <c>RetryCompanies</c> record with companies that timed out this run.
     /// Pass an empty list to clear after a clean run.
     /// </summary>
     Task SaveRetryCompaniesAsync(IReadOnlyList<RetryCompanyEntry> retryEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads retry companies from the <c>RetryCompanies</c> record.
+    /// Each entry includes company id/name and error message.
+    /// </summary>
+    Task<IReadOnlyList<RetryCompanyEntry>> GetRetryCompaniesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Overwrites the <c>projects</c> attribute on the <c>Retry</c> record with projects that timed out this run.
     /// Pass an empty list to clear after a clean run.
     /// </summary>
     Task SaveRetryProjectsAsync(IReadOnlyList<RetryProjectEntry> retryEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Overwrites the <c>companies</c> attribute on the <c>DefaultProjectRetry</c> record with default-project timeout references.
+    /// </summary>
+    Task SaveDefaultProjectRetriesAsync(IReadOnlyList<DefaultProjectRetryEntry> retryEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Overwrites the <c>summary</c> attribute on the <c>Company</c> record with the latest run counts.

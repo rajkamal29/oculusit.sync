@@ -125,6 +125,7 @@ public sealed class CompanyOrchestrationService(
         var syncedEntries = new List<SyncedCompanyEntry>();
         var failedCompaniesEntries = new List<FailedCompanyEntry>();
         var retryEntries = new List<RetryCompanyEntry>();
+        var defaultProjectRetryEntries = new List<DefaultProjectRetryEntry>();
 
         foreach (var company in companies)
         {
@@ -140,7 +141,22 @@ public sealed class CompanyOrchestrationService(
                         company.Id, company.Name);
                     created++;
 
-                    await CreateDefaultProjectAsync(company.Id.ToString(), kekaClientId, companyDateEntered, cancellationToken);
+                    try
+                    {
+                        await CreateDefaultProjectAsync(company.Id.ToString(), kekaClientId, companyDateEntered, cancellationToken);
+                    }
+                    catch (TimeoutRejectedException tex)
+                    {
+                        logger.LogWarning(tex,
+                            "Timeout creating default project for ConnectWise company {CompanyId} and Keka client {ClientId}.",
+                            company.Id, kekaClientId);
+                        defaultProjectRetryEntries.Add(new DefaultProjectRetryEntry
+                        {
+                            CompanyId = company.Id.ToString(),
+                            ClientId = kekaClientId,
+                            ErrorMessage = tex.Message
+                        });
+                    }
 
                     syncedEntries.Add(new SyncedCompanyEntry
                     {
@@ -158,7 +174,22 @@ public sealed class CompanyOrchestrationService(
                         existing.Id, company.Id, company.Name);
                     updated++;
 
-                    await CreateDefaultProjectAsync(company.Id.ToString(), existing.Id, companyDateEntered, cancellationToken);
+                    try
+                    {
+                        await CreateDefaultProjectAsync(company.Id.ToString(), existing.Id, companyDateEntered, cancellationToken);
+                    }
+                    catch (TimeoutRejectedException tex)
+                    {
+                        logger.LogWarning(tex,
+                            "Timeout creating default project for ConnectWise company {CompanyId} and Keka client {ClientId}.",
+                            company.Id, existing.Id);
+                        defaultProjectRetryEntries.Add(new DefaultProjectRetryEntry
+                        {
+                            CompanyId = company.Id.ToString(),
+                            ClientId = existing.Id,
+                            ErrorMessage = tex.Message
+                        });
+                    }
                 }
 
                 syncedEntries.Add(new SyncedCompanyEntry
@@ -201,10 +232,11 @@ public sealed class CompanyOrchestrationService(
 
         return new CompanySyncResult
         {
-            SyncedEntries       = syncedEntries,
-            FailedEntries       = failedCompaniesEntries,
-            RetryEntries        = retryEntries,
-            LastRecordUpdatedAt = companies[^1].LastUpdated,
+            SyncedEntries              = syncedEntries,
+            FailedEntries              = failedCompaniesEntries,
+            RetryEntries               = retryEntries,
+            DefaultProjectRetryEntries = defaultProjectRetryEntries,
+            LastRecordUpdatedAt        = companies[^1].LastUpdated,
             Total     = companies.Count,
             Succeeded = created + updated,
             Failed    = failed
@@ -239,6 +271,7 @@ public sealed class CompanyOrchestrationService(
         var newEntries = new List<SyncedCompanyEntry>();
         var failedCompaniesEntries = new List<FailedCompanyEntry>();
         var retryEntries = new List<RetryCompanyEntry>();
+        var defaultProjectRetryEntries = new List<DefaultProjectRetryEntry>();
 
         foreach (var company in companies)
         {
@@ -267,7 +300,22 @@ public sealed class CompanyOrchestrationService(
                         newKekaClientId, company.Id, company.Name);
                     created++;
 
-                    await CreateDefaultProjectAsync(company.Id.ToString(), newKekaClientId, companyDateEntered, cancellationToken);
+                    try
+                    {
+                        await CreateDefaultProjectAsync(company.Id.ToString(), newKekaClientId, companyDateEntered, cancellationToken);
+                    }
+                    catch (TimeoutRejectedException tex)
+                    {
+                        logger.LogWarning(tex,
+                            "Incremental: Timeout creating default project for ConnectWise company {CompanyId} and Keka client {ClientId}.",
+                            company.Id, newKekaClientId);
+                        defaultProjectRetryEntries.Add(new DefaultProjectRetryEntry
+                        {
+                            CompanyId = company.Id.ToString(),
+                            ClientId = newKekaClientId,
+                            ErrorMessage = tex.Message
+                        });
+                    }
 
                     newEntries.Add(new SyncedCompanyEntry
                     {
@@ -310,13 +358,163 @@ public sealed class CompanyOrchestrationService(
 
         return new CompanySyncResult
         {
-            SyncedEntries       = newEntries,
-            FailedEntries       = failedCompaniesEntries,
-            RetryEntries        = retryEntries,
-            LastRecordUpdatedAt = companies[^1].LastUpdated,
+            SyncedEntries              = newEntries,
+            FailedEntries              = failedCompaniesEntries,
+            RetryEntries               = retryEntries,
+            DefaultProjectRetryEntries = defaultProjectRetryEntries,
+            LastRecordUpdatedAt        = companies[^1].LastUpdated,
             Total     = companies.Count,
             Succeeded = created + updated,
             Failed    = failed
+        };
+    }
+
+    public async Task<CompanySyncResult> RetryCompaniesAsync(
+        IReadOnlyList<string> companyIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (companyIds.Count == 0)
+            return new CompanySyncResult();
+
+        var targetIds = companyIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (targetIds.Count == 0)
+            return new CompanySyncResult();
+
+        var companies = await connectWiseService.GetAllCompaniesAsync(cancellationToken);
+        var retryCompanies = companies
+            .Where(c => targetIds.Contains(c.Id.ToString()))
+            .ToList();
+
+        if (retryCompanies.Count == 0)
+        {
+            logger.LogInformation("No retry companies matched current ConnectWise dataset.");
+            return new CompanySyncResult();
+        }
+
+        logger.LogInformation("Retrying {Count} companies from retry/failure SyncState before normal sync.", retryCompanies.Count);
+
+        var usdCurrencyId = await kekaCurrencyService.GetUsdCurrencyIdAsync(cancellationToken);
+        if (usdCurrencyId is null)
+            logger.LogWarning("USD currency ID not found in Keka. billingCurrencyId will be omitted.");
+
+        var allKekaClients = await kekaClientService.GetAllClientsAsync(cancellationToken);
+        var kekaClientsByCode = allKekaClients
+            .Where(c => !string.IsNullOrEmpty(c.Code))
+            .ToDictionary(c => c.Code!);
+
+        var syncedEntries = new List<SyncedCompanyEntry>();
+        var failedEntries = new List<FailedCompanyEntry>();
+        var retryEntries = new List<RetryCompanyEntry>();
+        var defaultProjectRetryEntries = new List<DefaultProjectRetryEntry>();
+
+        var created = 0;
+        var updated = 0;
+        var failed = 0;
+
+        foreach (var company in retryCompanies)
+        {
+            try
+            {
+                var request = KekaClientMapper.MapToKekaClientRequest(company, usdCurrencyId);
+                var companyDateEntered = company.DateEntered!.Value;
+
+                if (!kekaClientsByCode.TryGetValue(company.Id.ToString(), out var existing))
+                {
+                    var kekaClientId = await kekaClientService.CreateClientAsync(request, cancellationToken);
+                    created++;
+
+                    try
+                    {
+                        await CreateDefaultProjectAsync(company.Id.ToString(), kekaClientId, companyDateEntered, cancellationToken);
+                    }
+                    catch (TimeoutRejectedException tex)
+                    {
+                        logger.LogWarning(tex,
+                            "Retry: Timeout creating default project for ConnectWise company {CompanyId} and Keka client {ClientId}.",
+                            company.Id, kekaClientId);
+                        defaultProjectRetryEntries.Add(new DefaultProjectRetryEntry
+                        {
+                            CompanyId = company.Id.ToString(),
+                            ClientId = kekaClientId,
+                            ErrorMessage = tex.Message
+                        });
+                    }
+
+                    syncedEntries.Add(new SyncedCompanyEntry
+                    {
+                        Id = company.Id.ToString(),
+                        ClientId = kekaClientId,
+                        DateEntered = companyDateEntered
+                    });
+                }
+                else
+                {
+                    var updateRequest = KekaClientMapper.MapToKekaClientUpdateRequest(company);
+                    await kekaClientService.UpdateClientAsync(existing.Id, updateRequest, cancellationToken);
+                    updated++;
+
+                    try
+                    {
+                        await CreateDefaultProjectAsync(company.Id.ToString(), existing.Id, companyDateEntered, cancellationToken);
+                    }
+                    catch (TimeoutRejectedException tex)
+                    {
+                        logger.LogWarning(tex,
+                            "Retry: Timeout creating default project for ConnectWise company {CompanyId} and Keka client {ClientId}.",
+                            company.Id, existing.Id);
+                        defaultProjectRetryEntries.Add(new DefaultProjectRetryEntry
+                        {
+                            CompanyId = company.Id.ToString(),
+                            ClientId = existing.Id,
+                            ErrorMessage = tex.Message
+                        });
+                    }
+
+                    syncedEntries.Add(new SyncedCompanyEntry
+                    {
+                        Id = company.Id.ToString(),
+                        ClientId = existing.Id,
+                        DateEntered = companyDateEntered
+                    });
+                }
+            }
+            catch (TimeoutRejectedException tex)
+            {
+                failed++;
+                retryEntries.Add(new RetryCompanyEntry
+                {
+                    Id = company.Id.ToString(),
+                    Name = company.Name ?? string.Empty,
+                    ErrorMessage = tex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                failed++;
+                failedEntries.Add(new FailedCompanyEntry
+                {
+                    Id = company.Id.ToString(),
+                    Name = company.Name ?? string.Empty,
+                    ErrorMessage = ex.Message
+                });
+            }
+        }
+
+        return new CompanySyncResult
+        {
+            SyncedEntries = syncedEntries,
+            FailedEntries = failedEntries,
+            RetryEntries = retryEntries,
+            DefaultProjectRetryEntries = defaultProjectRetryEntries,
+            LastRecordUpdatedAt = retryCompanies[^1].LastUpdated,
+            Total = retryCompanies.Count,
+            Succeeded = created + updated,
+            Failed = failed
         };
     }
 

@@ -29,6 +29,7 @@ public sealed class DynamoDbSyncStateService(
     private const string ClientNameAttribute       = "clientName";
     private const string CompanyCodeAttribute      = "companyCode";
     private const string LegacyNameAttribute       = "name";
+    private const string DefaultProjectRetryAttribute = "defaultProjectRetry";
     private const string ProjectIdAttribute        = "projectId";
     private const string ProjectNameAttribute      = "projectName";
     private const string ClientIdAttribute         = "clientId";
@@ -561,7 +562,7 @@ public sealed class DynamoDbSyncStateService(
         DateTime lastUpdatedAt,
         CancellationToken cancellationToken = default)
     {
-        logger.LogDebug("Saving {Count} retry company entries to DynamoDB (syncType={SyncType}).", retryEntries.Count, SyncTypes.Retry);
+        logger.LogDebug("Saving {Count} retry company entries to DynamoDB (syncType={SyncType}).", retryEntries.Count, SyncTypes.RetryCompanies);
 
         var items = retryEntries.Select(c => new AttributeValue
         {
@@ -578,7 +579,7 @@ public sealed class DynamoDbSyncStateService(
             TableName = _tableName,
             Key = new Dictionary<string, AttributeValue>
             {
-                [KeyAttribute] = new AttributeValue { S = SyncTypes.Retry }
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.RetryCompanies }
             },
             UpdateExpression = "SET #companies = :companies, #lastUpdatedAt = :lastUpdatedAt",
             ExpressionAttributeNames = new Dictionary<string, string>
@@ -595,8 +596,50 @@ public sealed class DynamoDbSyncStateService(
 
         await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
 
-        logger.LogInformation("Saved {Count} retry company entries to Retry record, lastUpdatedAt={LastUpdatedAt}.",
+        logger.LogInformation("Saved {Count} retry company entries to RetryCompanies record, lastUpdatedAt={LastUpdatedAt}.",
             retryEntries.Count, lastUpdatedAt);
+    }
+
+    public async Task<IReadOnlyList<RetryCompanyEntry>> GetRetryCompaniesAsync(CancellationToken cancellationToken = default)
+    {
+        logger.LogDebug("Reading retry company entries from DynamoDB (syncType={SyncType}).", SyncTypes.RetryCompanies);
+
+        var request = new GetItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.RetryCompanies }
+            }
+        };
+
+        var response = await dynamoDb.GetItemAsync(request, cancellationToken);
+        if (!response.IsItemSet || !response.Item.TryGetValue(CompaniesAttribute, out var companiesAttr) || companiesAttr.L is not { Count: > 0 })
+            return [];
+
+        var entries = new List<RetryCompanyEntry>();
+        foreach (var item in companiesAttr.L)
+        {
+            if (item.M is null)
+                continue;
+
+            item.M.TryGetValue(IdAttribute, out var idAttr);
+            item.M.TryGetValue(NameAttribute, out var nameAttr);
+            item.M.TryGetValue(ErrorMessageAttribute, out var errorAttr);
+
+            if (string.IsNullOrWhiteSpace(idAttr?.S))
+                continue;
+
+            entries.Add(new RetryCompanyEntry
+            {
+                Id = idAttr!.S!,
+                Name = nameAttr?.S ?? string.Empty,
+                ErrorMessage = errorAttr?.S ?? string.Empty
+            });
+        }
+
+        logger.LogInformation("Loaded {Count} retry company entries.", entries.Count);
+        return entries;
     }
 
     public async Task SaveRetryProjectsAsync(
@@ -639,6 +682,49 @@ public sealed class DynamoDbSyncStateService(
         await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
 
         logger.LogInformation("Saved {Count} retry project entries to Retry record, lastUpdatedAt={LastUpdatedAt}.",
+            retryEntries.Count, lastUpdatedAt);
+    }
+
+    public async Task SaveDefaultProjectRetriesAsync(
+        IReadOnlyList<DefaultProjectRetryEntry> retryEntries,
+        DateTime lastUpdatedAt,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogDebug("Saving {Count} default-project retry entries to DynamoDB (syncType={SyncType}).", retryEntries.Count, SyncTypes.DefaultProjectRetry);
+
+        var items = retryEntries.Select(r => new AttributeValue
+        {
+            M = new Dictionary<string, AttributeValue>
+            {
+                [CompanyIdAttribute]    = new AttributeValue { S = r.CompanyId },
+                [ClientIdAttribute]     = new AttributeValue { S = r.ClientId },
+                [ErrorMessageAttribute] = new AttributeValue { S = r.ErrorMessage }
+            }
+        }).ToList();
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.DefaultProjectRetry }
+            },
+            UpdateExpression = "SET #defaultProjectRetry = :items, #lastUpdatedAt = :lastUpdatedAt",
+            ExpressionAttributeNames = new Dictionary<string, string>
+            {
+                ["#defaultProjectRetry"] = DefaultProjectRetryAttribute,
+                ["#lastUpdatedAt"]       = LastUpdatedAtAttribute
+            },
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":items"]        = new AttributeValue { L = items },
+                [":lastUpdatedAt"] = new AttributeValue { S = lastUpdatedAt.ToString("o") }
+            }
+        };
+
+        await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
+
+        logger.LogInformation("Saved {Count} default-project retry entries, lastUpdatedAt={LastUpdatedAt}.",
             retryEntries.Count, lastUpdatedAt);
     }
 
