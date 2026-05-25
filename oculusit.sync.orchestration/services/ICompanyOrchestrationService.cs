@@ -17,16 +17,14 @@ public interface ICompanyOrchestrationService
     Task<CompanySyncResult> SyncCompaniesToKekaAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Incremental sync — fetches only companies updated since <paramref name="syncState"/>.LastUpdatedAt
-    /// and creates or updates Keka clients.
+    /// Incremental sync — fetches companies updated since <paramref name="syncState"/>.LastUpdatedAt
+    /// and merges them with retry companies from RetryCompanies sync state, then processes unique company IDs.
     /// Returns only newly created company-to-client mappings and any failures.
     /// </summary>
-    Task<CompanySyncResult> SyncCompaniesIncrementalAsync(SyncState syncState, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Retries a specific set of ConnectWise company IDs before regular company sync.
-    /// </summary>
-    Task<CompanySyncResult> RetryCompaniesAsync(IReadOnlyList<string> companyIds, CancellationToken cancellationToken = default);
+    Task<CompanySyncResult> SyncCompaniesIncrementalAsync(
+        SyncState syncState,
+        IReadOnlyList<string> retryCompanyIds,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>Result returned by company sync operations.</summary>

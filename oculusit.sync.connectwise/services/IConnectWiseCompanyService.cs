@@ -15,4 +15,9 @@ public interface IConnectWiseCompanyService
     /// ordered by lastUpdated ascending.
     /// </summary>
     Task<IReadOnlyList<ConnectWiseCompany>> GetCompaniesSinceAsync(DateTime since, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches only the specified company IDs.
+    /// </summary>
+    Task<IReadOnlyList<ConnectWiseCompany>> GetCompaniesByIdsAsync(IReadOnlyList<int> companyIds, CancellationToken cancellationToken = default);
 }
