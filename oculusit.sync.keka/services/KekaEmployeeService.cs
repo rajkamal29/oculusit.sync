@@ -15,7 +15,7 @@ public sealed class KekaEmployeeService(
     IKekaTokenService tokenService,
     ILogger<KekaEmployeeService> logger) : IKekaEmployeeService
 {
-    private readonly HttpClient _httpClient = httpClientFactory.CreateClient(nameof(KekaEmployeeService));
+    private readonly HttpClient _httpClient = httpClientFactory.CreateClient();
     private readonly KekaConfiguration _config = config.Value;
     private readonly ILogger<KekaEmployeeService> _logger = logger;
 

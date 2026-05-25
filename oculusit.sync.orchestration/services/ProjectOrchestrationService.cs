@@ -105,7 +105,7 @@ public sealed class ProjectOrchestrationService(
     ];
     public async Task<ProjectSyncResult> SyncProjectsAsync(
         SyncState companySyncState,
-        SyncState? metadataSyncState,
+        SyncState? projectStatusSyncState,
         CancellationToken cancellationToken = default)
     {
         var projects = await connectWiseProjectService.GetAllProjectsAsync(cancellationToken);
@@ -114,8 +114,8 @@ public sealed class ProjectOrchestrationService(
         var kekaClientIdByCompanyId = companySyncState.Companies
             .ToDictionary(e => e.Id, e => e.ClientId);
 
-        var statusMapping = KekaProjectMapper.BuildStatusMapping(metadataSyncState?.ProjectStatuses ?? []);
-        logger.LogInformation("Loaded {Count} project status mappings from metadata.", statusMapping.Count);
+        var statusMapping = KekaProjectMapper.BuildStatusMapping(projectStatusSyncState?.ProjectStatuses ?? []);
+        logger.LogInformation("Loaded {Count} project status mappings.", statusMapping.Count);
 
         // Fetch all existing Keka projects and index by Code (ConnectWise project ID).
         var allKekaProjects = await kekaProjectService.GetAllProjectsAsync(cancellationToken);
@@ -258,7 +258,7 @@ public sealed class ProjectOrchestrationService(
     public async Task<ProjectSyncResult> SyncProjectsIncrementalAsync(
         SyncState projectSyncState,
         SyncState companySyncState,
-        SyncState? metadataSyncState,
+        SyncState? projectStatusSyncState,
         CancellationToken cancellationToken = default)
     {
         var since = projectSyncState.LastUpdatedAt!.Value;
@@ -272,8 +272,8 @@ public sealed class ProjectOrchestrationService(
         var kekaClientIdByCompanyId = companySyncState.Companies
             .ToDictionary(e => e.Id, e => e.ClientId);
 
-        var statusMapping = KekaProjectMapper.BuildStatusMapping(metadataSyncState?.ProjectStatuses ?? []);
-        logger.LogInformation("Loaded {Count} project status mappings from metadata.", statusMapping.Count);
+        var statusMapping = KekaProjectMapper.BuildStatusMapping(projectStatusSyncState?.ProjectStatuses ?? []);
+        logger.LogInformation("Loaded {Count} project status mappings.", statusMapping.Count);
 
         // Full lookup of persisted entries keyed by CW project ID — used for both create-vs-update
         // detection and task-gap detection on the update path.

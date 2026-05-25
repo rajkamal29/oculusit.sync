@@ -2,7 +2,7 @@ namespace oculusit.sync.core.models;
 
 public sealed class SyncState
 {
-    /// <summary>Partition key — identifies the type of sync (e.g. "Company", "Project", "Metadata").</summary>
+    /// <summary>Partition key — identifies the type of sync (e.g. "Company", "Project", "Project Staus").</summary>
     public string SyncType { get; init; } = string.Empty;
 
     /// <summary>Company-to-Keka client mappings captured during the sync run.</summary>
@@ -26,11 +26,11 @@ public sealed class SyncState
     /// <summary>Companies that failed to sync during the most recent run.</summary>
     public IReadOnlyList<FailedCompanyEntry> FailedCompanies { get; init; } = [];
 
-    /// <summary>Project status metadata entries — full replace on every run.</summary>
+    /// <summary>Project status entries — full replace on every run.</summary>
     public IReadOnlyList<ProjectStatusEntry> ProjectStatuses { get; init; } = [];
 
-    /// <summary>Failure record from the most recent metadata sync run. Empty when the last run succeeded.</summary>
-    public FailedMetadataEntry? FailedProjectStatuses { get; init; }
+    /// <summary>Failure record from the most recent project status sync run. Empty when the last run succeeded.</summary>
+    public FailedProjectStatusEntry? FailedProjectStatuses { get; init; }
 
     /// <summary>Run-level summary for the Company sync — total processed, succeeded, and failed.</summary>
     public CompanySyncSummary? Summary { get; init; }
@@ -197,14 +197,14 @@ public sealed class RetryProjectEntry
     public string ErrorMessage { get; init; } = string.Empty;
 }
 
-/// <summary>Records a metadata sync failure from the most recent run.</summary>
-public sealed class FailedMetadataEntry
+/// <summary>Records a project status sync failure from the most recent run.</summary>
+public sealed class FailedProjectStatusEntry
 {
-    /// <summary>Exception message that caused the metadata sync to fail.</summary>
+    /// <summary>Exception message that caused the project status sync to fail.</summary>
     public string ErrorMessage { get; init; } = string.Empty;
 }
 
-/// <summary>Metadata entry for a ConnectWise project status and its optional Keka mapped value.</summary>
+/// <summary>Entry for a ConnectWise project status and its optional Keka mapped value.</summary>
 public sealed class ProjectStatusEntry
 {
     /// <summary>ConnectWise project status ID.</summary>

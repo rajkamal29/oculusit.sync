@@ -54,9 +54,6 @@ public static class KekaServiceExtensions
         services.AddHttpClient(nameof(KekaTimesheetEntryService))
                 .AddStandardResilienceHandler();
 
-        services.AddHttpClient(nameof(KekaEmployeeService))
-                .AddStandardResilienceHandler();
-
         services.AddSingleton<IKekaTokenService, KekaTokenService>();
         services.AddSingleton<IKekaClientService, KekaClientService>();
         services.AddSingleton<IKekaCurrencyService, KekaCurrencyService>();

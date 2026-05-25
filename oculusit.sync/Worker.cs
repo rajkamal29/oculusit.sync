@@ -10,7 +10,7 @@ public sealed partial class Worker(
     IHostApplicationLifetime lifetime,
     ICompanyOrchestrationService companyOrchestration,
     IProjectOrchestrationService projectOrchestration,
-    IMetadataOrchestrationService metadataOrchestration,
+    IProjectStatusOrchestrationService projectStatusOrchestration,
     IConnectWiseTimeEntryService connectWiseTimeEntryService,
     ISyncStateService syncStateService) : BackgroundService
 {
@@ -27,7 +27,7 @@ public sealed partial class Worker(
 
             if (initialCompanySyncState is not null && initialProjectSyncState is not null)
             {
-                await SyncMetadataAsync(syncStartedAt, stoppingToken);
+                await SyncProjectStatusAsync(syncStartedAt, stoppingToken);
                 await SyncCompaniesAsync(syncStartedAt, stoppingToken);
                 await SyncProjectsAsync(syncStartedAt, stoppingToken);
                 await SyncTimeEntriesSmokeAsync(stoppingToken);                

@@ -173,7 +173,7 @@ public sealed class DynamoDbSyncStateService(
             Projects              = projects,
             InitialProjects       = initialProjects,
             ProjectStatuses       = ReadProjectStatuses(response.Item),
-            FailedProjectStatuses = ReadFailedMetadata(response.Item)
+            FailedProjectStatuses = ReadFailedProjectStatus(response.Item)
         };
     }
 
@@ -643,12 +643,12 @@ public sealed class DynamoDbSyncStateService(
             retryEntries.Count, lastUpdatedAt);
     }
 
-    public async Task SaveMetadataAsync(
+    public async Task SaveProjectStatusAsync(
         IReadOnlyList<ProjectStatusEntry> entries,
         DateTime lastUpdatedAt,
         CancellationToken cancellationToken = default)
     {
-        logger.LogDebug("Saving {Count} project status metadata entries to DynamoDB.", entries.Count);
+        logger.LogDebug("Saving {Count} project status entries to DynamoDB.", entries.Count);
 
         var statusItems = entries.Select(s => new AttributeValue
         {
@@ -665,7 +665,7 @@ public sealed class DynamoDbSyncStateService(
             TableName = _tableName,
             Key = new Dictionary<string, AttributeValue>
             {
-                [KeyAttribute] = new AttributeValue { S = SyncTypes.Metadata }
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.ProjectStatus }
             },
             // Full replace every run — merging of MappedValue is handled in orchestration before this call.
             UpdateExpression = "SET #statuses = :statuses, #lastUpdatedAt = :lastUpdatedAt",
@@ -683,22 +683,22 @@ public sealed class DynamoDbSyncStateService(
 
         await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
 
-        logger.LogInformation("Saved {Count} project status metadata entries.", entries.Count);
+        logger.LogInformation("Saved {Count} project status entries.", entries.Count);
     }
 
-    public async Task SaveFailedMetadataAsync(
-        FailedMetadataEntry? failure,
+    public async Task SaveFailedProjectStatusAsync(
+        FailedProjectStatusEntry? failure,
         DateTime lastUpdatedAt,
         CancellationToken cancellationToken = default)
     {
-        logger.LogDebug("Saving failed metadata entry (null = reset) to DynamoDB.");
+        logger.LogDebug("Saving failed project status entry (null = reset) to DynamoDB.");
 
         var updateRequest = new UpdateItemRequest
         {
             TableName = _tableName,
             Key = new Dictionary<string, AttributeValue>
             {
-                [KeyAttribute] = new AttributeValue { S = SyncTypes.Metadata }
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.ProjectStatus }
             },
             ExpressionAttributeNames = new Dictionary<string, string>
             {
@@ -731,8 +731,8 @@ public sealed class DynamoDbSyncStateService(
         await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
 
         logger.LogInformation(failure is null
-            ? "Cleared failedProjectStatuses on Metadata record."
-            : "Saved failedProjectStatuses with error: {Error}.", failure?.ErrorMessage);
+            ? "Cleared failed project status entry on ProjectStatus record."
+            : "Saved failed project status entry with error: {Error}.", failure?.ErrorMessage);
     }
 
     private static IReadOnlyList<ProjectStatusEntry> ReadProjectStatuses(
@@ -785,12 +785,12 @@ public sealed class DynamoDbSyncStateService(
         return Task.FromResult<IReadOnlyList<FailedProjectEntry>>(failed);
     }
 
-    private static FailedMetadataEntry? ReadFailedMetadata(Dictionary<string, AttributeValue> item)
+    private static FailedProjectStatusEntry? ReadFailedProjectStatus(Dictionary<string, AttributeValue> item)
     {
         if (!item.TryGetValue(FailedProjectStatusesAttribute, out var attr) || attr.M is null)
             return null;
 
         attr.M.TryGetValue(ErrorMessageAttribute, out var errAttr);
-        return new FailedMetadataEntry { ErrorMessage = errAttr?.S ?? string.Empty };
+        return new FailedProjectStatusEntry { ErrorMessage = errAttr?.S ?? string.Empty };
     }
 }

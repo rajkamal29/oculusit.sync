@@ -4,11 +4,11 @@ using oculusit.sync.core.models;
 
 namespace oculusit.sync.orchestration.services;
 
-public sealed class MetadataOrchestrationService(
+public sealed class ProjectStatusOrchestrationService(
     IConnectWiseProjectService connectWiseProjectService,
-    ILogger<MetadataOrchestrationService> logger) : IMetadataOrchestrationService
+    ILogger<ProjectStatusOrchestrationService> logger) : IProjectStatusOrchestrationService
 {
-    public async Task<MetadataSyncResult> SyncProjectStatusesAsync(
+    public async Task<ProjectStatusSyncResult> SyncProjectStatusesAsync(
         IReadOnlyList<ProjectStatusEntry> existing,
         CancellationToken cancellationToken = default)
     {
@@ -44,10 +44,10 @@ public sealed class MetadataOrchestrationService(
         var hasChanges = added > 0 || updated > 0 || deleted > 0;
 
         logger.LogInformation(
-            "Project status metadata comparison: Added={Added}, Updated={Updated}, Deleted={Deleted}, Total={Total}. HasChanges={HasChanges}.",
+            "Project status sync comparison: Added={Added}, Updated={Updated}, Deleted={Deleted}, Total={Total}. HasChanges={HasChanges}.",
             added, updated, deleted, merged.Count, hasChanges);
 
-        return new MetadataSyncResult
+        return new ProjectStatusSyncResult
         {
             Entries    = merged,
             HasChanges = hasChanges,

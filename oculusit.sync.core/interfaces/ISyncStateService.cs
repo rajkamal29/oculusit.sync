@@ -51,14 +51,14 @@ public interface ISyncStateService
     Task SaveProjectSummaryAsync(ProjectSyncSummary summary, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Fully replaces the ProjectStatuses metadata list each run.
+    /// Fully replaces the Project Statuses list each run.
     /// New entries have an empty MappedValue; existing MappedValues are preserved on update.
     /// </summary>
-    Task SaveMetadataAsync(IReadOnlyList<ProjectStatusEntry> entries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
+    Task SaveProjectStatusAsync(IReadOnlyList<ProjectStatusEntry> entries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Persists a metadata sync failure against the Metadata record.
+    /// Persists a Project Status sync failure against the Project Status record.
     /// Pass null to clear the failure (i.e. reset after a successful run).
     /// </summary>
-    Task SaveFailedMetadataAsync(FailedMetadataEntry? failure, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
+    Task SaveFailedProjectStatusAsync(FailedProjectStatusEntry? failure, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
 }

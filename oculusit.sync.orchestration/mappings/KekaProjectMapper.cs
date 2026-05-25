@@ -9,7 +9,7 @@ public static class KekaProjectMapper
     // Maximum length of Keka's Group.Description column.
     private const int MaxDescriptionLength = 100;
 
-    // Default Keka status when no metadata mapping is found: 0 = InProgress.
+    // Default Keka status when no project status mapping is found: 0 = InProgress.
     private const int DefaultStatus = 0;
 
     public static KekaProjectRequest MapToKekaProjectRequest(
@@ -91,7 +91,7 @@ public static class KekaProjectMapper
     }
 
     /// <summary>
-    /// Builds a case-insensitive status lookup dictionary from the persisted metadata entries.
+    /// Builds a case-insensitive status lookup dictionary from the persisted project status entries.
     /// Key = ConnectWise status name (Value field), mapped value = Keka numeric status (MappedValue field).
     /// Entries with a missing or non-numeric MappedValue are skipped.
     /// </summary>
@@ -114,7 +114,7 @@ public static class KekaProjectMapper
 
     /// <summary>
     /// Resolves the Keka numeric status by looking up the ConnectWise status name in the
-    /// metadata-derived dictionary. Falls back to <see cref="DefaultStatus"/> (InProgress = 0)
+    /// project status-derived dictionary. Falls back to <see cref="DefaultStatus"/> (InProgress = 0)
     /// when the status is absent or unmapped.
     /// </summary>
     private static int MapStatus(string? cwStatus, IReadOnlyDictionary<string, int> statusMapping)
