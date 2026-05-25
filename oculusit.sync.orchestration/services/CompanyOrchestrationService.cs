@@ -336,31 +336,73 @@ public sealed class CompanyOrchestrationService(
     {
         var endDate = startDate.AddYears(10);
         var projectCode = $"{companyId}-CWDP";
+        const string defaultProjectName = "CW: Default Project";
 
-        var projectRequest = new KekaProjectRequest
+        var clientProjects = await kekaProjectService.GetProjectsByClientIdAsync(kekaClientId, cancellationToken);
+        var existingDefaultProject = clientProjects.FirstOrDefault(p =>
+            string.Equals(p.Code, projectCode, StringComparison.OrdinalIgnoreCase));
+
+        string kekaProjectId;
+
+        if (existingDefaultProject is null)
         {
-            ClientId   = kekaClientId,
-            Name       = "CW: Default Project",
-            Code       = projectCode,
-            Status     = 0,
-            StartDate  = startDate,
-            EndDate    = endDate,
-            IsBillable = true
-        };
+            var projectRequest = new KekaProjectRequest
+            {
+                ClientId   = kekaClientId,
+                Name       = defaultProjectName,
+                Code       = projectCode,
+                Status     = 0,
+                StartDate  = startDate,
+                EndDate    = endDate,
+                IsBillable = true
+            };
 
-        var kekaProjectId = await kekaProjectService.CreateProjectAsync(projectRequest, cancellationToken);
-        logger.LogInformation(
-            "Created default Keka project {ProjectId} for client {ClientId}.",
-            kekaProjectId, kekaClientId);
+            kekaProjectId = await kekaProjectService.CreateProjectAsync(projectRequest, cancellationToken);
+            logger.LogInformation(
+                "Created default Keka project {ProjectId} for client {ClientId}.",
+                kekaProjectId, kekaClientId);
+        }
+        else
+        {
+            kekaProjectId = existingDefaultProject.Id;
+            logger.LogInformation(
+                "Default Keka project already exists for client {ClientId}. ProjectId: {ProjectId}.",
+                kekaClientId, kekaProjectId);
+        }
+
+        if (string.IsNullOrWhiteSpace(kekaProjectId))
+        {
+            logger.LogWarning(
+                "Default project ID is empty for client {ClientId}. Skipping default task creation.",
+                kekaClientId);
+            return;
+        }
+
+        var taskStartDate = startDate.Date;
+        var taskEndDate = endDate.Date;
+
+        var existingTasks = await kekaProjectService.GetTasksByProjectAsync(kekaProjectId, cancellationToken);
+        var existingTaskNames = existingTasks
+            .Select(t => t.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (taskName, billingType) in DefaultTasks)
         {
+            if (existingTaskNames.Contains(taskName))
+            {
+                logger.LogDebug(
+                    "Default task '{TaskName}' already exists under project {ProjectId}. Skipping.",
+                    taskName, kekaProjectId);
+                continue;
+            }
+
             var taskRequest = new KekaTaskRequest
             {
                 ProjectId      = kekaProjectId,
                 Name           = taskName,
-                StartDate      = startDate,
-                EndDate        = endDate,
+                StartDate      = taskStartDate,
+                EndDate        = taskEndDate,
                 TaskBillingType = billingType
             };
 
