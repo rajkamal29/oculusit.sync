@@ -92,6 +92,28 @@ public sealed class DynamoDbSyncStateService(
             }
         }
 
+        var failedCompanies = new List<FailedCompanyEntry>();
+        if (response.Item.TryGetValue(FailedCompaniesAttribute, out var failedCompaniesAttr) && failedCompaniesAttr.L is { Count: > 0 })
+        {
+            foreach (var entry in failedCompaniesAttr.L)
+            {
+                if (entry.M is null) continue;
+                entry.M.TryGetValue(IdAttribute, out var idAttr);
+                entry.M.TryGetValue(NameAttribute, out var nameAttr);
+                entry.M.TryGetValue(ErrorMessageAttribute, out var errorAttr);
+
+                if (string.IsNullOrWhiteSpace(idAttr?.S))
+                    continue;
+
+                failedCompanies.Add(new FailedCompanyEntry
+                {
+                    Id = idAttr.S,
+                    Name = nameAttr?.S ?? string.Empty,
+                    ErrorMessage = errorAttr?.S ?? string.Empty
+                });
+            }
+        }
+
         var initialCompanies = new List<InitialCompanyEntry>();
         if (response.Item.TryGetValue(InitialCompaniesAttribute, out var initialCompaniesAttr) && initialCompaniesAttr.L is { Count: > 0 })
         {
@@ -174,6 +196,7 @@ public sealed class DynamoDbSyncStateService(
             InitialCompanies      = initialCompanies,
             Projects              = projects,
             InitialProjects       = initialProjects,
+            FailedCompanies       = failedCompanies,
             ProjectStatuses       = ReadProjectStatuses(response.Item)
         };
     }

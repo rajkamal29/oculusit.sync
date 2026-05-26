@@ -84,6 +84,41 @@ public sealed partial class Worker
         return candidateCompanyIds;
     }
 
+    private async Task<IReadOnlyList<FailedCompanyEntry>> GetAllFailedCompaniesAsync(
+        IReadOnlyList<SyncedCompanyEntry> syncedEntries,
+        IReadOnlyList<FailedCompanyEntry> failedEntries,
+        CancellationToken stoppingToken)
+    {
+        var failedState = await syncStateService.GetAsync(SyncTypes.FailedCompanies, stoppingToken);
+        var failedCompaniesFromDb = failedState?.FailedCompanies ?? [];
+
+        var failedCompanies = new List<FailedCompanyEntry>();
+
+        foreach (var dbFailedCompany in failedCompaniesFromDb)
+        {
+            if (string.IsNullOrWhiteSpace(dbFailedCompany.Id))
+                continue;
+
+            if (syncedEntries.Any(e =>
+                !string.IsNullOrWhiteSpace(e.Id)
+                && string.Equals(e.Id, dbFailedCompany.Id, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            if (failedEntries.Any(e =>
+                !string.IsNullOrWhiteSpace(e.Id)
+                && string.Equals(e.Id, dbFailedCompany.Id, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            //If failedCompanies id doesnot exist in syncedEntries and failedEntries then that failed company is added to failed company list
+            failedCompanies.Add(dbFailedCompany);
+        }
+
+        foreach (var failedEntry in failedEntries)
+            failedCompanies.Add(failedEntry);
+
+        return failedCompanies;
+    }
+
     private async Task<DateTime> PersistCompanySyncResultAsync(
         CompanySyncResult result,
         DateTime syncStartedAt,
@@ -107,7 +142,9 @@ public sealed partial class Worker
             }, stoppingToken);
         }
 
-        await syncStateService.SaveFailedCompaniesAsync(result.FailedEntries, lastUpdatedAt, stoppingToken);
+        var failedCompanies = await GetAllFailedCompaniesAsync(result.SyncedEntries, result.FailedEntries, stoppingToken);
+
+        await syncStateService.SaveFailedCompaniesAsync(failedCompanies, lastUpdatedAt, stoppingToken);
         await syncStateService.SaveRetryCompaniesAsync(result.RetryEntries, lastUpdatedAt, stoppingToken);
         await syncStateService.SaveDefaultProjectRetriesAsync(result.DefaultProjectRetryEntries, lastUpdatedAt, stoppingToken);
 
