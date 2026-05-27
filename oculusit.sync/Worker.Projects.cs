@@ -54,11 +54,7 @@ public sealed partial class Worker
                 !string.IsNullOrWhiteSpace(e.Id)
                 && string.Equals(e.Id, dbFailedProject.Id, StringComparison.OrdinalIgnoreCase));
 
-            var existsInRetryEntries = retryEntries.Any(e =>
-                !string.IsNullOrWhiteSpace(e.Id)
-                && string.Equals(e.Id, dbFailedProject.Id, StringComparison.OrdinalIgnoreCase));
-
-            if (existsInSyncedEntries || existsInFailedEntries || existsInRetryEntries)
+            if (existsInSyncedEntries || existsInFailedEntries)
                 continue;
 
             failedProjects.Add(dbFailedProject);
