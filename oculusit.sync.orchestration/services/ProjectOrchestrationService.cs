@@ -330,7 +330,7 @@ public sealed class ProjectOrchestrationService(
                         "No Keka client found for ConnectWise company ID {CompanyId} on project {ProjectId} - {ProjectName}. Skipping.",
                         companyId, project.Id, project.Name);
                     failed++;
-                    failedEntries.Add(new FailedProjectEntry
+                    retryEntries.Add(new RetryProjectEntry
                     {
                         Id           = project.Id.ToString(),
                         Name         = project.Name ?? string.Empty,
