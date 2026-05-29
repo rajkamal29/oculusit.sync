@@ -22,6 +22,8 @@ public sealed class DynamoDbSyncStateService(
     private const string InitialProjectsAttribute  = "initialProjects";
     private const string FailedProjectsAttribute   = "failedProjects";
     private const string FailedCompaniesAttribute  = "failedCompanies";
+    private const string ProjectManagerAttribute   = "projectManager";
+    private const string EmailAttribute            = "email";
     private const string ProjectStatusesAttribute       = "projectStatuses";
     private const string FailedProjectStatusesAttribute = "failedProjectStatuses";
     private const string IdAttribute               = "id";
@@ -35,6 +37,8 @@ public sealed class DynamoDbSyncStateService(
     private const string ClientIdAttribute         = "clientId";
     private const string KekaClientIdAttribute     = "kekaClientId";
     private const string KekaProjectIdAttribute    = "kekaProjectId";
+    private const string KekaProjectCodeAttribute  = "kekaProjectCode";
+    private const string KekaProjectNameAttribute  = "kekaProjectName";
     private const string FailedTaskKeysAttribute   = "failedTaskKeys";
     private const string NameAttribute             = "name";
     private const string ErrorMessageAttribute     = "errorMessage";
@@ -73,6 +77,26 @@ public sealed class DynamoDbSyncStateService(
             && DateTime.TryParseExact(tsAttr.S, "o", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
         {
             lastUpdatedAt = parsed;
+        }
+
+        DefaultProjectEntry? defaultProject = null;
+        if (response.Item.TryGetValue(ProjectManagerAttribute, out var projectManagerAttr)
+            && projectManagerAttr.M is { Count: > 0 })
+        {
+            var email = projectManagerAttr.M.TryGetValue(EmailAttribute, out var emailAttr) ? emailAttr.S ?? string.Empty : string.Empty;
+            var name = projectManagerAttr.M.TryGetValue(NameAttribute, out var managerNameAttr) ? managerNameAttr.S ?? string.Empty : string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(email) || !string.IsNullOrWhiteSpace(name))
+            {
+                defaultProject = new DefaultProjectEntry
+                {
+                    ProjectManager = new DefaultProjectManagerEntry
+                    {
+                        Email = email,
+                        Name = name
+                    }
+                };
+            }
         }
 
         var companies = new List<SyncedCompanyEntry>();
@@ -193,8 +217,8 @@ public sealed class DynamoDbSyncStateService(
                 entry.M.TryGetValue(ProjectIdAttribute, out var projectIdAttr);
                 entry.M.TryGetValue(ProjectNameAttribute, out var projectNameAttr);
                 entry.M.TryGetValue(KekaProjectIdAttribute, out var kekaProjectIdAttr);
-                entry.M.TryGetValue(CompanyCodeAttribute, out var kekaProjectCodeAttr);
-                entry.M.TryGetValue(ClientNameAttribute, out var kekaProjectNameAttr);
+                entry.M.TryGetValue(KekaProjectCodeAttribute, out var kekaProjectCodeAttr);
+                entry.M.TryGetValue(KekaProjectNameAttribute, out var kekaProjectNameAttr);
                 if (string.IsNullOrWhiteSpace(kekaProjectNameAttr?.S) && entry.M.TryGetValue(NameAttribute, out var legacyNameAttr))
                     kekaProjectNameAttr = legacyNameAttr;
 
@@ -216,6 +240,7 @@ public sealed class DynamoDbSyncStateService(
             Companies             = companies,
             InitialCompanies      = initialCompanies,
             Projects              = projects,
+            DefaultProject        = defaultProject,
             InitialProjects       = initialProjects,
             FailedProjects        = failedProjects,
             FailedCompanies       = failedCompanies,
@@ -300,8 +325,8 @@ public sealed class DynamoDbSyncStateService(
                         [ProjectIdAttribute]    = new AttributeValue { S = p.ProjectId },
                         [ProjectNameAttribute]  = new AttributeValue { S = p.ProjectName },
                         [KekaProjectIdAttribute]= new AttributeValue { S = p.KekaProjectId },
-                        [CompanyCodeAttribute]  = new AttributeValue { S = p.KekaProjectCode },
-                        [ClientNameAttribute]   = new AttributeValue { S = p.KekaProjectName }
+                        [KekaProjectCodeAttribute]  = new AttributeValue { S = p.KekaProjectCode },
+                        [KekaProjectNameAttribute]   = new AttributeValue { S = p.KekaProjectName }
                     }
                 }).ToList()
             };

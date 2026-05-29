@@ -5,6 +5,9 @@ public sealed class SyncState
     /// <summary>Partition key — identifies the type of sync (e.g. "Company", "Project", "Project Staus").</summary>
     public string SyncType { get; init; } = string.Empty;
 
+    /// <summary>Default project configuration (for syncType DefaultProject).</summary>
+    public DefaultProjectEntry? DefaultProject { get; init; }
+
     /// <summary>Company-to-Keka client mappings captured during the sync run.</summary>
     public IReadOnlyList<SyncedCompanyEntry> Companies { get; init; } = [];
 
@@ -218,5 +221,18 @@ public sealed class ProjectStatusEntry
 
     /// <summary>Mapped Keka value — set manually after initial insert; preserved on updates.</summary>
     public string MappedValue { get; init; } = string.Empty;
+}
+
+/// <summary>Default project configuration payload stored in SyncState.</summary>
+public sealed class DefaultProjectEntry
+{
+    public DefaultProjectManagerEntry ProjectManager { get; init; } = new();
+}
+
+/// <summary>Default project manager details.</summary>
+public sealed class DefaultProjectManagerEntry
+{
+    public string Email { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
 }
 
