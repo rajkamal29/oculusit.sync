@@ -35,6 +35,8 @@ public sealed class DynamoDbSyncStateService(
     private const string ClientIdAttribute         = "clientId";
     private const string KekaClientIdAttribute     = "kekaClientId";
     private const string KekaProjectIdAttribute    = "kekaProjectId";
+    private const string KekaProjectCodeAttribute  = "kekaProjectCode";
+    private const string KekaProjectNameAttribute  = "kekaProjectName";
     private const string FailedTaskKeysAttribute   = "failedTaskKeys";
     private const string NameAttribute             = "name";
     private const string ErrorMessageAttribute     = "errorMessage";
@@ -193,8 +195,8 @@ public sealed class DynamoDbSyncStateService(
                 entry.M.TryGetValue(ProjectIdAttribute, out var projectIdAttr);
                 entry.M.TryGetValue(ProjectNameAttribute, out var projectNameAttr);
                 entry.M.TryGetValue(KekaProjectIdAttribute, out var kekaProjectIdAttr);
-                entry.M.TryGetValue(CompanyCodeAttribute, out var kekaProjectCodeAttr);
-                entry.M.TryGetValue(ClientNameAttribute, out var kekaProjectNameAttr);
+                entry.M.TryGetValue(KekaProjectCodeAttribute, out var kekaProjectCodeAttr);
+                entry.M.TryGetValue(KekaProjectNameAttribute, out var kekaProjectNameAttr);
                 if (string.IsNullOrWhiteSpace(kekaProjectNameAttr?.S) && entry.M.TryGetValue(NameAttribute, out var legacyNameAttr))
                     kekaProjectNameAttr = legacyNameAttr;
 
@@ -300,8 +302,8 @@ public sealed class DynamoDbSyncStateService(
                         [ProjectIdAttribute]    = new AttributeValue { S = p.ProjectId },
                         [ProjectNameAttribute]  = new AttributeValue { S = p.ProjectName },
                         [KekaProjectIdAttribute]= new AttributeValue { S = p.KekaProjectId },
-                        [CompanyCodeAttribute]  = new AttributeValue { S = p.KekaProjectCode },
-                        [ClientNameAttribute]   = new AttributeValue { S = p.KekaProjectName }
+                        [KekaProjectCodeAttribute]  = new AttributeValue { S = p.KekaProjectCode },
+                        [KekaProjectNameAttribute]   = new AttributeValue { S = p.KekaProjectName }
                     }
                 }).ToList()
             };
