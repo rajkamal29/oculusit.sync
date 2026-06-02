@@ -48,6 +48,7 @@ public sealed class DynamoDbSyncStateService(
     private const string TotalAttribute             = "total";
     private const string SucceededAttribute         = "succeeded";
     private const string FailedAttribute            = "failed";
+    private const string DedupeKeyAttribute         = "dedupeKey";
 
     private readonly string _tableName = options.Value.TableName;
 
@@ -846,6 +847,190 @@ public sealed class DynamoDbSyncStateService(
         logger.LogInformation(failure is null
             ? "Cleared failed project status entry on ProjectStatus record."
             : "Saved failed project status entry with error: {Error}.", failure?.ErrorMessage);
+    }
+
+    public async Task<IReadOnlyList<TimeEntryEmployeeDedupeState>> GetTimeEntryEmployeeDedupeStatesAsync(CancellationToken cancellationToken = default)
+    {
+        var results = new List<TimeEntryEmployeeDedupeState>();
+        Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
+
+        do
+        {
+            var request = new ScanRequest
+            {
+                TableName = _tableName,
+                ProjectionExpression = "#syncType, #email, #dedupeKey, #lastUpdatedAt",
+                FilterExpression = "begins_with(#syncType, :prefix)",
+                ExpressionAttributeNames = new Dictionary<string, string>
+                {
+                    ["#syncType"] = KeyAttribute,
+                    ["#email"] = EmailAttribute,
+                    ["#dedupeKey"] = DedupeKeyAttribute,
+                    ["#lastUpdatedAt"] = LastUpdatedAtAttribute
+                },
+                ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+                {
+                    [":prefix"] = new AttributeValue { S = $"{SyncTypes.TimeEntries}#" }
+                },
+                ExclusiveStartKey = lastEvaluatedKey
+            };
+
+            var response = await dynamoDb.ScanAsync(request, cancellationToken);
+            foreach (var item in response.Items)
+            {
+                if (!item.TryGetValue(KeyAttribute, out var syncTypeAttr) || string.IsNullOrWhiteSpace(syncTypeAttr.S))
+                    continue;
+
+                results.Add(MapTimeEntryEmployeeState(syncTypeAttr.S, item));
+            }
+
+            lastEvaluatedKey = response.LastEvaluatedKey;
+        }
+        while (lastEvaluatedKey is { Count: > 0 });
+
+        logger.LogInformation("Loaded {Count} time-entry employee checkpoint records.", results.Count);
+        return results;
+    }
+
+    public async Task<IReadOnlyList<TimeEntryEmployeeDedupeState>> GetTimeEntryEmployeeDedupeStatesToSyncAsync(string previousWeekDedupeKey, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(previousWeekDedupeKey))
+            return await GetTimeEntryEmployeeDedupeStatesAsync(cancellationToken);
+
+        var results = new List<TimeEntryEmployeeDedupeState>();
+        Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
+
+        do
+        {
+            var request = new ScanRequest
+            {
+                TableName = _tableName,
+                ProjectionExpression = "#syncType, #email, #dedupeKey, #lastUpdatedAt",
+                FilterExpression = "begins_with(#syncType, :prefix) AND (attribute_not_exists(#dedupeKey) OR #dedupeKey = :emptyDedupeKey OR #dedupeKey < :previousWeekDedupeKey)",
+                ExpressionAttributeNames = new Dictionary<string, string>
+                {
+                    ["#syncType"] = KeyAttribute,
+                    ["#email"] = EmailAttribute,
+                    ["#dedupeKey"] = DedupeKeyAttribute,
+                    ["#lastUpdatedAt"] = LastUpdatedAtAttribute
+                },
+                ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+                {
+                    [":prefix"] = new AttributeValue { S = $"{SyncTypes.TimeEntries}#" },
+                    [":emptyDedupeKey"] = new AttributeValue { S = string.Empty },
+                    [":previousWeekDedupeKey"] = new AttributeValue { S = previousWeekDedupeKey }
+                },
+                ExclusiveStartKey = lastEvaluatedKey
+            };
+
+            var response = await dynamoDb.ScanAsync(request, cancellationToken);
+            foreach (var item in response.Items)
+            {
+                if (!item.TryGetValue(KeyAttribute, out var syncTypeAttr) || string.IsNullOrWhiteSpace(syncTypeAttr.S))
+                    continue;
+
+                results.Add(MapTimeEntryEmployeeState(syncTypeAttr.S, item));
+            }
+
+            lastEvaluatedKey = response.LastEvaluatedKey;
+        }
+        while (lastEvaluatedKey is { Count: > 0 });
+
+        logger.LogInformation(
+            "Loaded {Count} time-entry employee checkpoint records requiring sync for previous week {PreviousWeekDedupeKey}.",
+            results.Count,
+            previousWeekDedupeKey);
+
+        return results;
+    }
+
+    public async Task<TimeEntryEmployeeDedupeState?> GetTimeEntryEmployeeDedupeStateAsync(string employeeId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(employeeId))
+            return null;
+
+        var normalizedEmployeeId = employeeId.Trim();
+        var syncType = $"{SyncTypes.TimeEntries}#{normalizedEmployeeId}";
+
+        var request = new GetItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                [KeyAttribute] = new AttributeValue { S = syncType }
+            }
+        };
+
+        var response = await dynamoDb.GetItemAsync(request, cancellationToken);
+        if (!response.IsItemSet)
+            return null;
+
+        return MapTimeEntryEmployeeState(syncType, response.Item);
+    }
+
+    public async Task UpsertTimeEntryEmployeeDedupeStateAsync(TimeEntryEmployeeDedupeState state, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(state.EmployeeId))
+            return;
+
+        var employeeId = state.EmployeeId.Trim();
+        var syncType = $"{SyncTypes.TimeEntries}#{employeeId}";
+
+        var updateRequest = new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                [KeyAttribute] = new AttributeValue { S = syncType }
+            },
+            ExpressionAttributeNames = new Dictionary<string, string>
+            {
+                ["#email"] = EmailAttribute,
+                ["#dedupeKey"] = DedupeKeyAttribute,
+                ["#lastUpdatedAt"] = LastUpdatedAtAttribute
+            },
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":email"] = new AttributeValue { S = state.Email ?? string.Empty },
+                [":dedupeKey"] = new AttributeValue { S = state.DedupeKey ?? string.Empty }
+            }
+        };
+
+        if (state.LastUpdatedAt.HasValue)
+        {
+            updateRequest.UpdateExpression = "SET #email = :email, #dedupeKey = :dedupeKey, #lastUpdatedAt = :lastUpdatedAt";
+            updateRequest.ExpressionAttributeValues[":lastUpdatedAt"] = new AttributeValue { S = state.LastUpdatedAt.Value.ToString("o") };
+        }
+        else
+        {
+            updateRequest.UpdateExpression = "SET #email = :email, #dedupeKey = :dedupeKey REMOVE #lastUpdatedAt";
+        }
+
+        await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
+    }
+
+    private static TimeEntryEmployeeDedupeState MapTimeEntryEmployeeState(
+        string syncType,
+        IReadOnlyDictionary<string, AttributeValue> item)
+    {
+        DateTime? lastUpdatedAt = null;
+        if (item.TryGetValue(LastUpdatedAtAttribute, out var tsAttr)
+            && DateTime.TryParseExact(tsAttr.S, "o", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
+        {
+            lastUpdatedAt = parsed;
+        }
+
+        var employeeId = syncType.StartsWith($"{SyncTypes.TimeEntries}#", StringComparison.Ordinal)
+            ? syncType[(SyncTypes.TimeEntries.Length + 1)..]
+            : syncType;
+
+        return new TimeEntryEmployeeDedupeState
+        {
+            EmployeeId = employeeId,
+            Email = item.TryGetValue(EmailAttribute, out var emailAttr) ? emailAttr.S ?? string.Empty : string.Empty,
+            DedupeKey = item.TryGetValue(DedupeKeyAttribute, out var dedupeKeyAttr) ? dedupeKeyAttr.S ?? string.Empty : string.Empty,
+            LastUpdatedAt = lastUpdatedAt
+        };
     }
 
     private static IReadOnlyList<ProjectStatusEntry> ReadProjectStatuses(

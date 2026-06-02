@@ -2,8 +2,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using oculusit.sync.connectwise.configurations;
 using oculusit.sync.connectwise.modules;
-using System.Net.Http.Json;
-using System.Text.Json.Serialization;
 
 namespace oculusit.sync.connectwise.services;
 
@@ -22,17 +20,19 @@ public sealed class ConnectWiseTimeEntryService(
 
     public async Task<IReadOnlyList<ConnectWiseTimeEntry>> GetTimeEntriesForDayAsync(
         DateOnly date,
+        IReadOnlyList<int>? memberIds = null,
         CancellationToken cancellationToken = default)
     {
-        var startUtc = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var endUtc = date.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+        var (startUtc, endUtc) = GetWeekBoundsUtc(date);
 
         logger.LogInformation(
-            "Fetching ConnectWise time entries for UTC day {Date} ({StartUtc:o} to {EndUtc:o}).",
-            date, startUtc, endUtc);
+            "Fetching ConnectWise time entries for UTC week containing {Date} ({StartUtc:o} to {EndUtc:o}) with member filter count {MemberCount}.",
+            date, startUtc, endUtc, memberIds?.Count ?? 0);
 
         var condition =
             $"timeStart >= [{startUtc:yyyy-MM-ddTHH:mm:ssZ}] AND timeStart <= [{endUtc:yyyy-MM-ddTHH:mm:ssZ}]";
+
+        condition = AppendMemberFilterCondition(condition, memberIds);
 
         var results = await FetchPagedAsync<ConnectWiseTimeEntry>(
             relativeUrlBase: "/time/entries",
@@ -42,10 +42,8 @@ public sealed class ConnectWiseTimeEntryService(
             pageSize: Config.PageSize,
             cancellationToken: cancellationToken);
 
-        await EnrichMemberEmailsAsync(results, cancellationToken);
-
         logger.LogInformation(
-            "Fetched {Count} ConnectWise time entries for UTC day {Date}.",
+            "Fetched {Count} ConnectWise time entries for UTC week containing {Date}.",
             results.Count, date);
 
         return results;
@@ -54,17 +52,19 @@ public sealed class ConnectWiseTimeEntryService(
     public async Task<IReadOnlyList<ConnectWiseTimeEntry>> GetTimeEntriesForCompanyAndDayAsync(
         int companyId,
         DateOnly date,
+        IReadOnlyList<int>? memberIds = null,
         CancellationToken cancellationToken = default)
     {
-        var startUtc = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var endUtc = date.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+        var (startUtc, endUtc) = GetWeekBoundsUtc(date);
 
         logger.LogInformation(
-            "Fetching ConnectWise time entries for company {CompanyId} and UTC day {Date} ({StartUtc:o} to {EndUtc:o}).",
-            companyId, date, startUtc, endUtc);
+            "Fetching ConnectWise time entries for company {CompanyId} and UTC week containing {Date} ({StartUtc:o} to {EndUtc:o}) with member filter count {MemberCount}.",
+            companyId, date, startUtc, endUtc, memberIds?.Count ?? 0);
 
         var condition =
             $"company/id = {companyId} AND timeStart >= [{startUtc:yyyy-MM-ddTHH:mm:ssZ}] AND timeStart <= [{endUtc:yyyy-MM-ddTHH:mm:ssZ}]";
+
+        condition = AppendMemberFilterCondition(condition, memberIds);
 
         var results = await FetchPagedAsync<ConnectWiseTimeEntry>(
             relativeUrlBase: "/time/entries",
@@ -74,89 +74,40 @@ public sealed class ConnectWiseTimeEntryService(
             pageSize: Config.PageSize,
             cancellationToken: cancellationToken);
 
-        await EnrichMemberEmailsAsync(results, cancellationToken);
-
         logger.LogInformation(
-            "Fetched {Count} ConnectWise time entries for company {CompanyId} and UTC day {Date}.",
+            "Fetched {Count} ConnectWise time entries for company {CompanyId} and UTC week containing {Date}.",
             results.Count, companyId, date);
 
         return results;
     }
 
-    private async Task EnrichMemberEmailsAsync(
-        IReadOnlyList<ConnectWiseTimeEntry> entries,
-        CancellationToken cancellationToken)
+    private static string AppendMemberFilterCondition(string baseCondition, IReadOnlyList<int>? memberIds)
     {
-        var memberIds = entries
-            .Select(e => e.Member?.Id)
-            .Where(id => id is > 0)
-            .Select(id => id!.Value)
+        if (memberIds is null || memberIds.Count == 0)
+            return baseCondition;
+
+        var filteredIds = memberIds
+            .Where(id => id > 0)
             .Distinct()
             .ToList();
 
-        if (memberIds.Count == 0)
-            return;
+        if (filteredIds.Count == 0)
+            return baseCondition;
 
-        logger.LogInformation("Enriching member emails for {Count} distinct ConnectWise members.", memberIds.Count);
-
-        var emailByMemberId = new Dictionary<int, string>();
-
-        foreach (var memberId in memberIds)
-        {
-            try
-            {
-                using var request = CreateRequest(
-                    HttpMethod.Get,
-                    $"/system/members/{memberId}?fields=id,identifier,officeEmail,defaultEmail");
-
-                using var response = await HttpClient.SendAsync(request, cancellationToken);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                    logger.LogWarning(
-                        "Failed to fetch ConnectWise member {MemberId} email. Status={StatusCode}, Body={Body}",
-                        memberId, response.StatusCode, errorBody);
-                    continue;
-                }
-
-                var member = await response.Content.ReadFromJsonAsync<ConnectWiseMemberEmailResponse>(JsonOptions, cancellationToken);
-
-                var email = member?.OfficeEmail ?? member?.DefaultEmail;
-                if (!string.IsNullOrWhiteSpace(email))
-                    emailByMemberId[memberId] = email;
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to enrich email for ConnectWise member {MemberId}.", memberId);
-            }
-        }
-
-        foreach (var entry in entries)
-        {
-            if (entry.Member is null)
-                continue;
-
-            if (emailByMemberId.TryGetValue(entry.Member.Id, out var email))
-                entry.MemberEmail = email;
-        }
-
-        logger.LogInformation("Member email enrichment complete. Resolved emails for {Count} members.", emailByMemberId.Count);
+        var memberCondition = string.Join(" OR ", filteredIds.Select(id => $"member/id = {id}"));
+        return $"{baseCondition} AND ({memberCondition})";
     }
 
-    private sealed class ConnectWiseMemberEmailResponse
+    private static (DateTime StartUtc, DateTime EndUtc) GetWeekBoundsUtc(DateOnly date)
     {
-        [JsonPropertyName("id")]
-        public int Id { get; init; }
+        var daysSinceMonday = ((int)date.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+        var monday = date.AddDays(-daysSinceMonday);
+        var sunday = monday.AddDays(6);
 
-        [JsonPropertyName("identifier")]
-        public string Identifier { get; init; } = string.Empty;
+        var startUtc = monday.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var endUtc = sunday.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
 
-        [JsonPropertyName("officeEmail")]
-        public string? OfficeEmail { get; init; }
-
-        [JsonPropertyName("defaultEmail")]
-        public string? DefaultEmail { get; init; }
+        return (startUtc, endUtc);
     }
 
 }

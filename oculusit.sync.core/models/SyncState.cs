@@ -236,3 +236,17 @@ public sealed class DefaultProjectManagerEntry
     public string Name { get; init; } = string.Empty;
 }
 
+/// <summary>
+/// One time-entry checkpoint record per employee.
+/// syncType pattern: TimeEntries#{EmployeeId}
+/// dedupeKey stores the latest successfully synced UTC week start (yyyyMMdd).
+/// LastUpdatedAt stores when the successful Keka sync completed.
+/// </summary>
+public sealed class TimeEntryEmployeeDedupeState
+{
+    public string EmployeeId { get; init; } = string.Empty;
+    public string Email { get; init; } = string.Empty;
+    public string DedupeKey { get; init; } = string.Empty;
+    public DateTime? LastUpdatedAt { get; init; }
+}
+

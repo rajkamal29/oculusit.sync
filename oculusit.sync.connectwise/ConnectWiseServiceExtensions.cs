@@ -18,6 +18,7 @@ public static class ConnectWiseServiceExtensions
                 .AddStandardResilienceHandler();
 
         services.AddSingleton<IConnectWiseCompanyService, ConnectWiseCompanyService>();
+        services.AddSingleton<IConnectWiseMemberService, ConnectWiseMemberService>();
         services.AddSingleton<IConnectWiseProjectService, ConnectWiseProjectService>();
         services.AddSingleton<IConnectWiseTimeEntryService, ConnectWiseTimeEntryService>();
 

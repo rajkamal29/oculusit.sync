@@ -72,11 +72,9 @@ public sealed class KekaEmployeeService(
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogError("Failed to search Keka employee by email {Email}. StatusCode: {StatusCode}, Body: {Body}",
+            _logger.LogWarning("Keka employee search by email {Email} did not succeed. StatusCode: {StatusCode}, Body: {Body}",
                 email, response.StatusCode, errorBody);
-            throw new HttpRequestException(
-                $"Keka POST /hris/employees/search failed ({(int)response.StatusCode}): {errorBody}",
-                null, response.StatusCode);
+            return null;
         }
 
         var envelope = await response.Content
@@ -85,8 +83,18 @@ public sealed class KekaEmployeeService(
         if (envelope is null || !envelope.Succeeded)
         {
             var errors = envelope?.Errors is { Count: > 0 } e ? string.Join(", ", e) : "none";
-            throw new InvalidOperationException(
-                $"Keka search employee for '{email}' failed. Message: {envelope?.Message}. Errors: {errors}");
+            _logger.LogWarning(
+                "Keka search employee by email {Email} did not return a valid employee. Message: {Message}. Errors: {Errors}",
+                email,
+                envelope?.Message,
+                errors);
+            return null;
+        }
+
+        if (envelope.Data is null || string.IsNullOrWhiteSpace(envelope.Data.Id))
+        {
+            _logger.LogWarning("Keka search employee by email {Email} returned no employee data.", email);
+            return null;
         }
 
         _logger.LogInformation("Successfully searched Keka employee by email {Email}.", email);

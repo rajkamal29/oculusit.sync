@@ -7,6 +7,7 @@ namespace oculusit.sync.connectwise.services;
 /// </summary>
 public interface IConnectWiseService :
     IConnectWiseCompanyService,
+    IConnectWiseMemberService,
     IConnectWiseProjectService,
     IConnectWiseTimeEntryService
 {

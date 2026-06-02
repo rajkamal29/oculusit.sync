@@ -16,6 +16,9 @@ public sealed class ConnectWiseService(
     private readonly ConnectWiseCompanyService _companies = new(httpClientFactory, config,
         Microsoft.Extensions.Logging.Abstractions.NullLogger<ConnectWiseCompanyService>.Instance);
 
+    private readonly ConnectWiseMemberService _members = new(httpClientFactory, config,
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<ConnectWiseMemberService>.Instance);
+
     private readonly ConnectWiseProjectService _projects = new(httpClientFactory, config,
         Microsoft.Extensions.Logging.Abstractions.NullLogger<ConnectWiseProjectService>.Instance);
 
@@ -31,6 +34,9 @@ public sealed class ConnectWiseService(
     public Task<IReadOnlyList<ConnectWiseCompany>> GetCompaniesByIdsAsync(IReadOnlyList<int> companyIds, CancellationToken cancellationToken = default)
         => _companies.GetCompaniesByIdsAsync(companyIds, cancellationToken);
 
+    public Task<IReadOnlyList<ConnectWiseMember>> GetAllMembersAsync(CancellationToken cancellationToken = default)
+        => _members.GetAllMembersAsync(cancellationToken);
+
     public Task<IReadOnlyList<ConnectWiseProject>> GetAllProjectsAsync(CancellationToken cancellationToken = default)
         => _projects.GetAllProjectsAsync(cancellationToken);
 
@@ -45,12 +51,14 @@ public sealed class ConnectWiseService(
 
     public Task<IReadOnlyList<ConnectWiseTimeEntry>> GetTimeEntriesForDayAsync(
         DateOnly date,
+        IReadOnlyList<int>? memberIds = null,
         CancellationToken cancellationToken = default)
-        => _timeEntries.GetTimeEntriesForDayAsync(date, cancellationToken);
+        => _timeEntries.GetTimeEntriesForDayAsync(date, memberIds, cancellationToken);
 
     public Task<IReadOnlyList<ConnectWiseTimeEntry>> GetTimeEntriesForCompanyAndDayAsync(
         int companyId,
         DateOnly date,
+        IReadOnlyList<int>? memberIds = null,
         CancellationToken cancellationToken = default)
-        => _timeEntries.GetTimeEntriesForCompanyAndDayAsync(companyId, date, cancellationToken);
+        => _timeEntries.GetTimeEntriesForCompanyAndDayAsync(companyId, date, memberIds, cancellationToken);
 }

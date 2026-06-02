@@ -273,11 +273,9 @@ public sealed class KekaProjectService(
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogError("Failed to fetch tasks for Keka project {ProjectId}. StatusCode: {StatusCode}, Body: {Body}",
+            _logger.LogWarning("Failed to fetch tasks for Keka project {ProjectId}. StatusCode: {StatusCode}, Body: {Body}",
                 projectId, response.StatusCode, errorBody);
-            throw new HttpRequestException(
-                $"Keka GET /psa/projects/{projectId}/tasks failed ({(int)response.StatusCode}): {errorBody}",
-                null, response.StatusCode);
+            return [];
         }
 
         var envelope = await response.Content

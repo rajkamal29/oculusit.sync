@@ -67,4 +67,26 @@ public interface ISyncStateService
     /// Pass null to clear the failure (i.e. reset after a successful run).
     /// </summary>
     Task SaveFailedProjectStatusAsync(FailedProjectStatusEntry? failure, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns all per-employee time-entry checkpoint records where syncType starts with TimeEntries#.
+    /// </summary>
+    Task<IReadOnlyList<TimeEntryEmployeeDedupeState>> GetTimeEntryEmployeeDedupeStatesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns employee checkpoint records that still need processing for the provided previous-week dedupe key.
+    /// </summary>
+    Task<IReadOnlyList<TimeEntryEmployeeDedupeState>> GetTimeEntryEmployeeDedupeStatesToSyncAsync(string previousWeekDedupeKey, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the successful-sync checkpoint for a single employee where syncType pattern is TimeEntries#{employeeId}.
+    /// Returns null when no record exists.
+    /// </summary>
+    Task<TimeEntryEmployeeDedupeState?> GetTimeEntryEmployeeDedupeStateAsync(string employeeId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Upserts the successful-sync checkpoint for a single employee using syncType pattern TimeEntries#{employeeId}.
+    /// DedupeKey should represent the latest successfully synced UTC week start key (for example yyyyMMdd).
+    /// </summary>
+    Task UpsertTimeEntryEmployeeDedupeStateAsync(TimeEntryEmployeeDedupeState state, CancellationToken cancellationToken = default);
 }
