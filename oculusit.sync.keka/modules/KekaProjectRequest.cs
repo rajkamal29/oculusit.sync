@@ -73,3 +73,34 @@ public sealed class KekaTaskRequest
     [JsonPropertyName("taskBillingType")]
     public int TaskBillingType { get; init; }
 }
+
+public sealed class KekaTaskUpdateRequest
+{
+    [JsonPropertyName("name")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Name { get; init; }
+
+    [JsonPropertyName("description")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Description { get; init; }
+
+    [JsonPropertyName("taskBillingType")]
+    public int? TaskBillingType { get; init; }
+
+    [JsonPropertyName("assignedTo")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? AssignedTo { get; init; }
+
+    [JsonPropertyName("startDate")]
+    public DateTime? StartDate { get; init; }
+
+    [JsonPropertyName("endDate")]
+    public DateTime? EndDate { get; init; }
+
+    [JsonPropertyName("estimatedHours")]
+    public double? EstimatedHours { get; init; }
+
+    [JsonPropertyName("phaseId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PhaseId { get; init; }
+}
