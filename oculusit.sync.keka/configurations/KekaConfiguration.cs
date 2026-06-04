@@ -3,8 +3,6 @@ namespace oculusit.sync.keka.configurations;
 public sealed class KekaConfiguration
 {
     public const string SectionName = "Keka";
-
-    public string TenantName { get; init; } = string.Empty;
     public string ApiBaseUrl { get; init; } = string.Empty;
     public string IdentityUrl { get; init; } = string.Empty;
     public string TokenEndpoint { get; init; } = "/connect/token";

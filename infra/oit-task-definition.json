@@ -1,0 +1,95 @@
+{
+  "family": "oit-keka-cw-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::504884946059:role/oit-keka-cw-task-role",
+  "taskRoleArn": "arn:aws:iam::504884946059:role/oit-keka-cw-task-role",
+  "containerDefinitions": [{
+    "name": "oit-keka-cw-integration",
+    "image": "504884946059.dkr.ecr.ap-south-1.amazonaws.com/oit-repo-keka-cw-integration:latest",
+    "essential": true,
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group":         "oit-logs-keka-cw-integration",
+        "awslogs-region":        "ap-south-1",
+        "awslogs-stream-prefix": "ecs"
+      }
+    },
+    "secrets": [
+       {
+          "name": "ConnectWise__BaseUrl",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-cw-baseurl"
+        },
+        {
+          "name": "ConnectWise__CompanyId",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-cw-companyid"
+        },
+        {
+          "name": "ConnectWise__PublicKey",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-cw-publickey"
+        },
+        {
+          "name": "ConnectWise__PrivateKey",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-cw-privatekey"
+        },
+        {
+          "name": "ConnectWise__ClientId",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-cw-clientid"
+        },
+        {
+          "name": "ConnectWise__ApiVersion",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-cw-apiversion"
+        },
+        {
+          "name": "Keka__ApiBaseUrl",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-keka-apibaseurl"
+        },
+        {
+          "name": "Keka__IdentityUrl",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-keka-identityurl"
+        },
+        {
+          "name": "Keka__ClientId",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-keka-clientid"
+        },
+        {
+          "name": "Keka__ClientSecret",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-keka-clientsecret"
+        },
+        {
+          "name": "Keka__ApiKey",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-keka-apikey"
+        },
+        {
+          "name": "Keka__GrantType",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-keka-granttype"
+        },
+        {
+          "name": "Keka__Scope",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-keka-scope"
+        },
+        {
+          "name": "ConnectWise__PageSize",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-keka-cw-pagesize"
+        },
+        {
+          "name": "DynamoDB__TableName",
+          "valueFrom": "arn:aws:ssm:ap-south-1:504884946059:parameter/oit-param-keka-cw-tablename"
+        }
+
+    ],
+    "environment": [
+      { "name": "ASPNETCORE_ENVIRONMENT", "value": "Production" },
+      { "name": "ENVIRONMENT",            "value": "uat" },
+      { "name": "REGION",                 "value": "ap-south-1" }
+    ]
+  }],
+  "tags": [
+    { "key": "Project",     "value": "OitConnectWiseKekaIntegrationService" },
+    { "key": "Environment", "value": "uat" },
+    { "key": "Name",        "value": "oit-keka-cw-task" }
+  ]
+}
