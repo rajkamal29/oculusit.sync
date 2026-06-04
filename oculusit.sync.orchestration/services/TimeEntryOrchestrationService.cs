@@ -218,7 +218,8 @@ public sealed class TimeEntryOrchestrationService(
             var mappedProject = projectState?.Projects.FirstOrDefault(p =>
                 string.Equals(p.Id, entry.Project.Id.ToString(), StringComparison.Ordinal));
 
-            if (string.IsNullOrWhiteSpace(mappedProject?.KekaProjectId))
+            if (string.IsNullOrWhiteSpace(mappedProject?.KekaProjectId) || 
+                string.IsNullOrWhiteSpace(mappedProject?.KekaClientId))
             {
                 logger.LogWarning(
                     "No Keka project mapping found for ConnectWise project {ProjectId} on time entry {TimeEntryId}.",
@@ -227,17 +228,11 @@ public sealed class TimeEntryOrchestrationService(
                 return null;
             }
 
-            var allProjects = await kekaProjectService.GetAllProjectsAsync(cancellationToken);
-            var kekaProject = allProjects.FirstOrDefault(p =>
-                string.Equals(p.Id, mappedProject.KekaProjectId, StringComparison.OrdinalIgnoreCase));
-
-            if (kekaProject is null)
-                logger.LogWarning(
-                    "Keka project {KekaProjectId} not found via API for ConnectWise project {ProjectId}.",
-                    mappedProject.KekaProjectId,
-                    entry.Project.Id);
-
-            return kekaProject;
+            return new KekaProject
+            {
+                ClientId = mappedProject.KekaClientId,
+                Id = mappedProject.KekaProjectId,
+            };
         }
 
         if (entry.Company is null || entry.Company.Id <= 0)
