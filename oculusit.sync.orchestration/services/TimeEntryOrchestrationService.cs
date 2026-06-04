@@ -12,6 +12,7 @@ public sealed class TimeEntryOrchestrationService(
     IKekaProjectService kekaProjectService,
     IKekaEmployeeService kekaEmployeeService,
     IKekaTimesheetEntryService kekaTimesheetEntryService,
+    IKekaClientService kekaClientService,
     ILogger<TimeEntryOrchestrationService> logger) : ITimeEntryOrchestrationService
 {
     private const string DefaultProjectSuffix = "-CWDP";
@@ -217,7 +218,7 @@ public sealed class TimeEntryOrchestrationService(
             var mappedProject = projectState?.Projects.FirstOrDefault(p =>
                 string.Equals(p.Id, entry.Project.Id.ToString(), StringComparison.Ordinal));
 
-            if (string.IsNullOrWhiteSpace(mappedProject?.KekaProjectId))
+            if (string.IsNullOrWhiteSpace(mappedProject?.KekaProjectId))          
             {
                 logger.LogWarning(
                     "No Keka project mapping found for ConnectWise project {ProjectId} on time entry {TimeEntryId}.",
@@ -226,17 +227,10 @@ public sealed class TimeEntryOrchestrationService(
                 return null;
             }
 
-            var allProjects = await kekaProjectService.GetAllProjectsAsync(cancellationToken);
-            var kekaProject = allProjects.FirstOrDefault(p =>
-                string.Equals(p.Id, mappedProject.KekaProjectId, StringComparison.OrdinalIgnoreCase));
-
-            if (kekaProject is null)
-                logger.LogWarning(
-                    "Keka project {KekaProjectId} not found via API for ConnectWise project {ProjectId}.",
-                    mappedProject.KekaProjectId,
-                    entry.Project.Id);
-
-            return kekaProject;
+            return new KekaProject
+            {
+                Id = mappedProject.KekaProjectId,
+            };
         }
 
         if (entry.Company is null || entry.Company.Id <= 0)
@@ -297,7 +291,7 @@ public sealed class TimeEntryOrchestrationService(
         }
 
         // Resolve billing role by matching employee department name to a billing role name.
-        const int DepartmentGroupType = 1;
+        const int DepartmentGroupType = 2;
         var departmentName = kekaEmployee.Groups
             .FirstOrDefault(g => g.GroupType == DepartmentGroupType)
             ?.Title;
@@ -306,7 +300,7 @@ public sealed class TimeEntryOrchestrationService(
 
         if (!string.IsNullOrWhiteSpace(departmentName))
         {
-            var billingRoles = await kekaProjectService.GetAllBillingRolesAsync(cancellationToken);
+            var billingRoles = await kekaClientService.GetBillingRolesAsync(kekaProject.ClientId, cancellationToken);
             billingRoleId = billingRoles
                 .FirstOrDefault(r => string.Equals(r.Name, departmentName, StringComparison.OrdinalIgnoreCase))
                 ?.Id;
@@ -369,7 +363,38 @@ public sealed class TimeEntryOrchestrationService(
             string.Equals(t.Name, taskName, StringComparison.OrdinalIgnoreCase));
 
         if (existingTask is not null && !string.IsNullOrWhiteSpace(existingTask.Id))
+        {
+            var projectEndDate = kekaProject.EndDate?.Date;
+            if (projectEndDate.HasValue && existingTask.EndDate?.Date != projectEndDate)
+            {
+                try
+                {
+                    await kekaProjectService.UpdateTaskAsync(
+                        kekaProject.Id,
+                        existingTask.Id,
+                        new KekaTaskUpdateRequest { EndDate = projectEndDate },
+                        cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(
+                        ex,
+                        "Failed to update end date of task {TaskId} on Keka project {ProjectId}. Continuing with existing task.",
+                        existingTask.Id,
+                        kekaProject.Id);
+                    return string.Empty;
+                }
+
+
+                logger.LogInformation(
+                    "Updated end date of task {TaskId} on Keka project {ProjectId} to {EndDate}.",
+                    existingTask.Id,
+                    kekaProject.Id,
+                    projectEndDate.Value);
+            }
+
             return existingTask.Id;
+        }
 
         var fallbackStartDate = (NormalizeUtc(timeStart) ?? DateTime.UtcNow).Date;
         var startDate = kekaProject.StartDate?.Date ?? fallbackStartDate;
@@ -389,7 +414,8 @@ public sealed class TimeEntryOrchestrationService(
 
     private static string ResolveTaskName(string? billableOption, string? chargeToType)
     {
-        var isBillable = !string.Equals(billableOption?.Trim(), "DoNotBill", StringComparison.OrdinalIgnoreCase);
+        var isBillable = !string.Equals(billableOption?.Trim(), "DoNotBill", StringComparison.OrdinalIgnoreCase)
+                      && !string.Equals(billableOption?.Trim(), "NoCharge", StringComparison.OrdinalIgnoreCase);
 
         return chargeToType?.Trim() switch
         {
