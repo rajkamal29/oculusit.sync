@@ -218,8 +218,7 @@ public sealed class TimeEntryOrchestrationService(
             var mappedProject = projectState?.Projects.FirstOrDefault(p =>
                 string.Equals(p.Id, entry.Project.Id.ToString(), StringComparison.Ordinal));
 
-            if (string.IsNullOrWhiteSpace(mappedProject?.KekaProjectId) || 
-                string.IsNullOrWhiteSpace(mappedProject?.KekaClientId))
+            if (string.IsNullOrWhiteSpace(mappedProject?.KekaProjectId))          
             {
                 logger.LogWarning(
                     "No Keka project mapping found for ConnectWise project {ProjectId} on time entry {TimeEntryId}.",
