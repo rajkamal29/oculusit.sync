@@ -240,3 +240,111 @@ Bottom      → Simple analogy cards
 
 aws ecs create-cluster --cluster-name oit-keka-cw-cluster --region ap-south-1 --tags key=Project,value=OitConnectWiseKekaIntegrationService key=Environment,value=uat key=Name,value=oit-keka-cw-cluster
 
+
+
+\------------------ TASK DEFINITION ---------------
+
+aws ecs register-task-definition --cli-input-json file://oit-task-definition.json --region ap-south-1
+
+
+
+\------------------ Build \& Push Docker Image to ECR --------------------
+
+
+
+aws ecr get-login-password --region ap-south-1 --profile oit-uat-profile | docker login --username AWS --password-stdin 504884946059.dkr.ecr.ap-south-1.amazonaws.com
+
+
+
+docker build -t oit-keka-cw-integration .
+
+
+
+docker tag oit-keka-cw-integration:latest 504884946059.dkr.ecr.ap-south-1.amazonaws.com/oit-repo-keka-cw-integration:latest
+
+
+
+docker push 504884946059.dkr.ecr.ap-south-1.amazonaws.com/oit-repo-keka-cw-integration:latest 
+
+
+
+aws ecr describe-images --repository-name oit-repo-keka-cw-integration --region ap-south-1 --profile oit-uat-profile --query "imageDetails\[\*].{Tag:imageTags\[0],Pushed:imagePushedAt,Status:imageStatus}"
+
+
+
+\------------------------------ EVENTBRIDGE SCHEDULER ------------------------------------
+
+
+
+\# Get Subnet ID
+
+aws ec2 describe-subnets --filters "Name=default-for-az,Values=true" --query "Subnets\[0].SubnetId" --output text --region ap-south-1 --profile oit-uat-profile
+
+
+
+\# Get Security Group ID
+
+aws ec2 describe-security-groups --filters "Name=group-name,Values=default" --query "SecurityGroups\[0].GroupId" --output text --region ap-south-1 --profile oit-uat-profile
+
+
+
+
+
+aws scheduler create-schedule --name "oit-keka-cw-schedule" --schedule-expression "cron(30 4 \* \* ? \*)" --schedule-expression-timezone "UTC" --flexible-time-window Mode=OFF --state ENABLED --target "{\\"Arn\\":\\"arn:aws:ecs:ap-south-1:504884946059:cluster/oit-keka-cw-cluster\\",\\"RoleArn\\":\\"arn:aws:iam::504884946059:role/oit-keka-cw-scheduler-role\\",\\"EcsParameters\\":{\\"TaskDefinitionArn\\":\\"arn:aws:ecs:ap-south-1:504884946059:task-definition/oit-keka-cw-task:1\\",\\"LaunchType\\":\\"FARGATE\\",\\"NetworkConfiguration\\":{\\"awsvpcConfiguration\\":{\\"Subnets\\":\[\\"subnet-0d2c98bfb34d0acd0\\"],\\"SecurityGroups\\":\[\\"sg-0acdd3c5da6a3cd36\\"],\\"AssignPublicIp\\":\\"ENABLED\\"}}}}" --region ap-south-1 --profile oit-uat-profile
+
+
+
+
+
+**Trigger Manually** 
+
+
+
+aws ecs run-task --cluster oit-keka-cw-cluster --task-definition oit-keka-cw-task:1 --launch-type FARGATE --network-configuration "awsvpcConfiguration={subnets=\[subnet-0d2c98bfb34d0acd0],securityGroups=\[sg-0acdd3c5da6a3cd36],assignPublicIp=ENABLED}" --region ap-south-1 --profile oit-uat-profile
+
+
+
+aws ecs list-tasks --cluster oit-keka-cw-cluster --region ap-south-1 --profile oit-uat-profile
+
+
+
+aws ecs describe-tasks --cluster oit-keka-cw-cluster --tasks c8b7ab66ef3d4e6a95878c6df285a155 --region ap-south-1 --profile oit-uat-profile --query "tasks\[0].{Status:lastStatus,StopCode:stopCode,Reason:stoppedReason,Exit:containers\[0].exitCode}"
+
+
+
+\------------------------------------- SUMMARY RESOURCES -------------------------
+
+
+
+Account ID    → 504884946059
+
+Region        → ap-south-1 (Mumbai)
+
+Environment   → UAT
+
+Profile       → oit-uat-profile
+
+
+
+Resources Created:
+
+&#x20; Resource Group  → oit-rg-keka-cw-integration
+
+&#x20; CloudWatch      → oit-logs-keka-cw-integration
+
+&#x20; DynamoDB        → oculusit-sync-state
+
+&#x20; ECR             → oit-repo-keka-cw-integration
+
+&#x20; IAM Task Role   → oit-keka-cw-task-role
+
+&#x20; IAM Sched Role  → oit-keka-cw-scheduler-role
+
+&#x20; ECS Cluster     → oit-keka-cw-cluster
+
+&#x20; Task Definition → oit-keka-cw-task:1
+
+&#x20; Schedule        → oit-keka-cw-schedule
+
+&#x20;                   (runs daily 04:30 UTC = 10:00 AM IST)
+

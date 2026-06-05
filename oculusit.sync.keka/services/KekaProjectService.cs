@@ -291,6 +291,45 @@ public sealed class KekaProjectService(
         return envelope.Data;
     }
 
+    public async Task UpdateTaskAsync(string projectId, string taskId, KekaTaskUpdateRequest request, CancellationToken cancellationToken = default)
+    {
+        await SetAuthHeaderAsync(cancellationToken);
+
+        var uri = BuildUri($"/psa/projects/{projectId}/tasks/{taskId}");
+        _logger.LogDebug("Updating Keka task {TaskId} for project {ProjectId}.", taskId, projectId);
+
+        var response = await _httpClient.PutAsJsonAsync(uri, request, _jsonOptions, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            _logger.LogWarning("Received 401 updating Keka task {TaskId} for project {ProjectId}. Refreshing token.", taskId, projectId);
+            await RefreshAuthHeaderAsync(cancellationToken);
+            response = await _httpClient.PutAsJsonAsync(uri, request, _jsonOptions, cancellationToken);
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("Failed to update Keka task {TaskId} for project {ProjectId}. StatusCode: {StatusCode}, Body: {Body}",
+                taskId, projectId, response.StatusCode, errorBody);
+            throw new HttpRequestException(
+                $"Keka PUT /psa/projects/{projectId}/tasks/{taskId} failed ({(int)response.StatusCode}): {errorBody}",
+                null, response.StatusCode);
+        }
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<KekaUpdateTaskResponse>(_jsonOptions, cancellationToken);
+
+        if (envelope is null || !envelope.Succeeded)
+        {
+            var errors = envelope?.Errors is { Count: > 0 } e ? string.Join(", ", e) : "none";
+            throw new InvalidOperationException(
+                $"Keka update task '{taskId}' for project '{projectId}' failed. Message: {envelope?.Message}. Errors: {errors}");
+        }
+
+        _logger.LogInformation("Successfully updated Keka task {TaskId} for project {ProjectId}.", taskId, projectId);
+    }
+
     public async Task<IReadOnlyList<KekaTask>> GetTasksByProjectAsync(string projectId, CancellationToken cancellationToken = default)
     {
         await SetAuthHeaderAsync(cancellationToken);

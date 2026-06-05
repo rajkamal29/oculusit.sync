@@ -39,4 +39,7 @@ public sealed class KekaTask
 
     [JsonPropertyName("name")]
     public string Name { get; init; } = string.Empty;
+
+    [JsonPropertyName("endDate")]
+    public DateTime? EndDate { get; init; }
 }

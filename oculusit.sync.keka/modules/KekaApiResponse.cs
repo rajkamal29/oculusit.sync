@@ -131,6 +131,25 @@ internal sealed class KekaCreateTaskResponse
 }
 
 /// <summary>
+/// Wraps the Keka API response for project task update.
+/// data is true if the update was applied successfully.
+/// </summary>
+internal sealed class KekaUpdateTaskResponse
+{
+    [JsonPropertyName("succeeded")]
+    public bool Succeeded { get; init; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; init; }
+
+    [JsonPropertyName("errors")]
+    public IReadOnlyList<string> Errors { get; init; } = [];
+
+    [JsonPropertyName("data")]
+    public bool Data { get; init; }
+}
+
+/// <summary>
 /// Wraps the Keka API response for fetching employee by email.
 /// </summary>
 internal sealed class KekaGetEmployeeResponse
