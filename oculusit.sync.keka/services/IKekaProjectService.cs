@@ -11,6 +11,11 @@ public interface IKekaProjectService
     Task<IReadOnlyList<KekaProject>> GetAllProjectsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Fetches a single Keka PSA project by its ID.
+    /// </summary>
+    Task<KekaProject?> GetProjectByIdAsync(string projectId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Fetches Keka PSA projects for a specific client ID.
     /// </summary>
     Task<IReadOnlyList<KekaProject>> GetProjectsByClientIdAsync(string clientId, CancellationToken cancellationToken = default);

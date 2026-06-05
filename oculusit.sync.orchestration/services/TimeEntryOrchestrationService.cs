@@ -226,10 +226,7 @@ public sealed class TimeEntryOrchestrationService(
                 return null;
             }
 
-            var allProjects = await kekaProjectService.GetAllProjectsAsync(cancellationToken);
-            var kekaProject = allProjects.FirstOrDefault(p =>
-                string.Equals(p.Id, mappedProject.KekaProjectId, StringComparison.OrdinalIgnoreCase));
-
+            var kekaProject = await kekaProjectService.GetProjectByIdAsync(mappedProject.KekaProjectId, cancellationToken);
             if (kekaProject is null)
                 logger.LogWarning(
                     "Keka project {KekaProjectId} not found via API for ConnectWise project {ProjectId}.",
@@ -335,7 +332,6 @@ public sealed class TimeEntryOrchestrationService(
         }
 
         var startDate = kekaProject.StartDate?.Date ?? DateTime.UtcNow.Date;
-        var endDate = kekaProject.EndDate?.Date;
 
         var allocationRequest = new KekaProjectAllocationRequest
         {
@@ -343,7 +339,7 @@ public sealed class TimeEntryOrchestrationService(
             AllocationPercentage = 100,
             BillingRoleId = billingRoleId,
             StartDate = startDate,
-            EndDate = endDate,
+            EndDate = null,
             BillingType = kekaProject.IsBillable
                 ? KekaProjectAllocationBillingType.Billable
                 : KekaProjectAllocationBillingType.NonBillable

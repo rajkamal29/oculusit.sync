@@ -330,7 +330,7 @@ public sealed class CompanyOrchestrationService(
         DateTime startDate,
         CancellationToken cancellationToken)
     {
-        var endDate = startDate.AddYears(10);
+        var endDate = DateTime.MaxValue;
         var projectCode = $"{companyId}-CWDP";
         const string defaultProjectName = "CW: Default Project";
 

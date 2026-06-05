@@ -226,64 +226,75 @@ public sealed partial class Worker
 
             foreach (var timesheet in memberGroup.OrderBy(t => t.Year).ThenBy(t => t.Period))
             {
-                var year   = timesheet.Year;
-                var period = timesheet.Period;
-
-                // Check if this year/period is already synced for this employee
-                if (employeeState.SyncedPeriods.TryGetValue(year, out var syncedPeriods)
-                    && syncedPeriods.Contains(period))
+                try
                 {
-                    // Already synced — check audit trail for any rejections
-                    var auditTrail = await connectWiseTimesheetService.GetTimesheetAuditTrailAsync(
-                        timesheet.Id, stoppingToken);
+                    var year   = timesheet.Year;
+                    var period = timesheet.Period;
 
-                    var hasRejection = auditTrail.Any(a =>
-                        IsResubmissionStatus(a.StatusAfter)  ||
-                        IsResubmissionStatus(a.StatusBefore) ||
-                        IsResubmissionStatus(a.TransactionType));
-
-                    if (!hasRejection)
+                    // Check if this year/period is already synced for this employee
+                    if (employeeState.SyncedPeriods.TryGetValue(year, out var syncedPeriods)
+                        && syncedPeriods.Contains(period))
                     {
-                        totalSkipped++;
-                        logger.LogDebug(
-                            "Timesheet {TimesheetId} (member={MemberId}, {Year}/{Period}) already synced with no rejections — skipping.",
+                        // Already synced — check audit trail for any rejections
+                        var auditTrail = await connectWiseTimesheetService.GetTimesheetAuditTrailAsync(
+                            timesheet.Id, stoppingToken);
+
+                        var hasRejection = auditTrail.Any(a =>
+                            IsResubmissionStatus(a.StatusAfter)  ||
+                            IsResubmissionStatus(a.StatusBefore) ||
+                            IsResubmissionStatus(a.TransactionType));
+
+                        if (!hasRejection)
+                        {
+                            totalSkipped++;
+                            logger.LogDebug(
+                                "Timesheet {TimesheetId} (member={MemberId}, {Year}/{Period}) already synced with no rejections — skipping.",
+                                timesheet.Id, memberId, year, period);
+                            continue;
+                        }
+
+                        // Rejection found — update logic not yet implemented
+                        logger.LogWarning(
+                            "Timesheet {TimesheetId} (member={MemberId}, year={Year}, period={Period}) has rejection history " +
+                            "but re-sync to Keka is not yet supported. Please update this timesheet in Keka manually.",
                             timesheet.Id, memberId, year, period);
+                        totalSkipped++;
                         continue;
                     }
 
-                    // Rejection found — update logic not yet implemented
-                    logger.LogWarning(
-                        "Timesheet {TimesheetId} (member={MemberId}, year={Year}, period={Period}) has rejection history " +
-                        "but re-sync to Keka is not yet supported. Please update this timesheet in Keka manually.",
+                    // Period not yet synced — fetch time entries for this timesheet and log to Keka
+                    logger.LogInformation(
+                        "Timesheet {TimesheetId} (member={MemberId}, {Year}/{Period}) not synced yet — fetching time entries.",
                         timesheet.Id, memberId, year, period);
-                    totalSkipped++;
+
+                    var timeEntries = await connectWiseTimeEntryService.GetTimeEntriesByTimesheetIdAsync(
+                        timesheet.Id, stoppingToken);
+
+                    var postedCount = await timeEntryOrchestrationService.LogTimeEntriesBatchAsync(
+                        timeEntries,
+                    employeeState.Email,
+                        stoppingToken);
+
+                    totalPosted += postedCount;
+                    memberNewPeriods++;
+
+                    // Mark this year/period as synced in the local map
+                    if (!updatedSyncedPeriods.ContainsKey(year))
+                        updatedSyncedPeriods[year] = [];
+                    updatedSyncedPeriods[year].Add(period);
+
+                    logger.LogInformation(
+                        "Timesheet {TimesheetId} (member={MemberId}, {Year}/{Period}): fetched {EntryCount} entries, posted {PostedCount} to Keka in a single batch.",
+                        timesheet.Id, memberId, year, period, timeEntries.Count, postedCount);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex,
+                        "Error processing timesheet {TimesheetId} (member={MemberId}, {Year}/{Period}). " +
+                        "Exception: {ExceptionMessage}",
+                        timesheet.Id, memberId, timesheet.Year, timesheet.Period, ex.Message);
                     continue;
                 }
-
-                // Period not yet synced — fetch time entries for this timesheet and log to Keka
-                logger.LogInformation(
-                    "Timesheet {TimesheetId} (member={MemberId}, {Year}/{Period}) not synced yet — fetching time entries.",
-                    timesheet.Id, memberId, year, period);
-
-                var timeEntries = await connectWiseTimeEntryService.GetTimeEntriesByTimesheetIdAsync(
-                    timesheet.Id, stoppingToken);
-
-                var postedCount = await timeEntryOrchestrationService.LogTimeEntriesBatchAsync(
-                    timeEntries,
-                    employeeState.Email,
-                    stoppingToken);
-
-                totalPosted += postedCount;
-                memberNewPeriods++;
-
-                // Mark this year/period as synced in the local map
-                if (!updatedSyncedPeriods.ContainsKey(year))
-                    updatedSyncedPeriods[year] = [];
-                updatedSyncedPeriods[year].Add(period);
-
-                logger.LogInformation(
-                    "Timesheet {TimesheetId} (member={MemberId}, {Year}/{Period}): fetched {EntryCount} entries, posted {PostedCount} to Keka in a single batch.",
-                    timesheet.Id, memberId, year, period, timeEntries.Count, postedCount);
             }
 
             // Persist updated SyncedPeriods for this member if any new periods were processed
@@ -311,7 +322,7 @@ public sealed partial class Worker
         {
             await syncStateService.SaveAsync(new SyncState
             {
-                SyncType      = SyncTypes.TimeSheets,
+            SyncType      = SyncTypes.TimeSheets,
                 LastUpdatedAt = lastTimesheetUpdatedAt
             }, stoppingToken);
 
