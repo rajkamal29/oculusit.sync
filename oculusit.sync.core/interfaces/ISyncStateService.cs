@@ -90,4 +90,10 @@ public interface ISyncStateService
     /// SyncedPeriods is the full updated map of year → synced period set and is written in full each call.
     /// </summary>
     Task UpsertTimeEntryEmployeeDedupeStateAsync(TimeEntryEmployeeDedupeState state, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ensures the DefaultProject sync type exists in the database.
+    /// If it doesn't exist, creates it with default project manager information (Jason William).
+    /// </summary>
+    Task EnsureDefaultProjectAsync(CancellationToken cancellationToken = default);
 }

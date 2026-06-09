@@ -1040,4 +1040,63 @@ public sealed class DynamoDbSyncStateService(
 
         return statuses;
     }
+
+    public async Task EnsureDefaultProjectAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            logger.LogDebug("Checking if DefaultProject sync type exists in DynamoDB.");
+
+            var request = new GetItemRequest
+            {
+                TableName = _tableName,
+                Key = new Dictionary<string, AttributeValue>
+                {
+                    [KeyAttribute] = new AttributeValue { S = SyncTypes.DefaultProject }
+                },
+                ProjectionExpression = KeyAttribute  // Only fetch the key, not the entire item
+            };
+
+            var response = await dynamoDb.GetItemAsync(request, cancellationToken);
+
+            if (!response.IsItemSet)
+            {
+                const string projectManagerEmail = "Jason.w@oculusit.com";
+                const string projectManagerName = "Jason William";
+
+                var item = new Dictionary<string, AttributeValue>
+                {
+                    [KeyAttribute] = new AttributeValue { S = SyncTypes.DefaultProject },
+                    [ProjectManagerAttribute] = new AttributeValue
+                    {
+                        M = new Dictionary<string, AttributeValue>
+                        {
+                            [EmailAttribute] = new AttributeValue { S = projectManagerEmail },
+                            [NameAttribute] = new AttributeValue { S = projectManagerName }
+                        }
+                    },
+                    [LastUpdatedAtAttribute] = new AttributeValue { S = DateTime.UtcNow.ToString("o") }
+                };
+
+                var putRequest = new PutItemRequest
+                {
+                    TableName = _tableName,
+                    Item = item
+                };
+
+                await dynamoDb.PutItemAsync(putRequest, cancellationToken);
+                logger.LogInformation("Initialized DefaultProject sync type with project manager: {ProjectManagerName} ({ProjectManagerEmail}).", 
+                    projectManagerName, projectManagerEmail);
+            }
+            else
+            {
+                logger.LogDebug("DefaultProject sync type already exists in the database.");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error initializing DefaultProject sync type in the database.");
+            throw;
+        }
+    }
 }
