@@ -353,15 +353,22 @@ public sealed class DynamoDbSyncStateService(
             state.SyncType, state.LastUpdatedAt, state.Companies.Count);
     }
 
-    public async Task AppendCompaniesAsync(
+    public async Task UpsertCompaniesAsync(
         string syncType,
         IReadOnlyList<SyncedCompanyEntry> newEntries,
         DateTime lastUpdatedAt,
         CancellationToken cancellationToken = default)
     {
-        logger.LogDebug("Appending {Count} company entries to DynamoDB for syncType={SyncType}.", newEntries.Count, syncType);
+        logger.LogDebug("Upserting {Count} company entries in DynamoDB for syncType={SyncType}.", newEntries.Count, syncType);
 
-        var newItems = newEntries.Select(c => new AttributeValue
+        var existing = await GetAsync(syncType, cancellationToken);
+        var merged = (existing?.Companies ?? [])
+            .ToDictionary(e => e.Id, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in newEntries)
+            merged[entry.Id] = entry;
+
+        var mergedItems = merged.Values.Select(c => new AttributeValue
         {
             M = new Dictionary<string, AttributeValue>
             {
@@ -377,9 +384,7 @@ public sealed class DynamoDbSyncStateService(
             {
                 [KeyAttribute] = new AttributeValue { S = syncType }
             },
-            // list_append appends newItems to the existing companies list.
-            // if_not_exists handles the edge case where companies attribute doesn't exist yet.
-            UpdateExpression = "SET #companies = list_append(if_not_exists(#companies, :empty), :newItems), #lastUpdatedAt = :lastUpdatedAt",
+            UpdateExpression = "SET #companies = :companies, #lastUpdatedAt = :lastUpdatedAt",
             ExpressionAttributeNames = new Dictionary<string, string>
             {
                 ["#companies"]     = CompaniesAttribute,
@@ -387,27 +392,34 @@ public sealed class DynamoDbSyncStateService(
             },
             ExpressionAttributeValues = new Dictionary<string, AttributeValue>
             {
-                [":newItems"]      = new AttributeValue { L = newItems },
-                [":empty"]         = new AttributeValue { L = [] },
+                [":companies"]     = new AttributeValue { L = mergedItems },
                 [":lastUpdatedAt"] = new AttributeValue { S = lastUpdatedAt.ToString("o") }
             }
         };
 
         await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
 
-        logger.LogInformation("Appended {Count} company entries and updated lastUpdatedAt={LastUpdatedAt} for syncType={SyncType}.",
-            newEntries.Count, lastUpdatedAt, syncType);
+        logger.LogInformation(
+            "Upserted {New} company entries (merged total: {Total}) for syncType={SyncType}, lastUpdatedAt={LastUpdatedAt}.",
+            newEntries.Count, mergedItems.Count, syncType, lastUpdatedAt);
     }
 
-    public async Task AppendProjectsAsync(
+    public async Task UpsertProjectsAsync(
         string syncType,
         IReadOnlyList<SyncedProjectEntry> newEntries,
         DateTime lastUpdatedAt,
         CancellationToken cancellationToken = default)
     {
-        logger.LogDebug("Appending {Count} project entries to DynamoDB for syncType={SyncType}.", newEntries.Count, syncType);
+        logger.LogDebug("Upserting {Count} project entries in DynamoDB for syncType={SyncType}.", newEntries.Count, syncType);
 
-        var newItems = newEntries.Select(p => new AttributeValue
+        var existing = await GetAsync(syncType, cancellationToken);
+        var merged = (existing?.Projects ?? [])
+            .ToDictionary(e => e.Id, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in newEntries)
+            merged[entry.Id] = entry;
+
+        var mergedItems = merged.Values.Select(p => new AttributeValue
         {
             M = new Dictionary<string, AttributeValue>
             {
@@ -424,7 +436,7 @@ public sealed class DynamoDbSyncStateService(
             {
                 [KeyAttribute] = new AttributeValue { S = syncType }
             },
-            UpdateExpression = "SET #projects = list_append(if_not_exists(#projects, :empty), :newItems), #lastUpdatedAt = :lastUpdatedAt",
+            UpdateExpression = "SET #projects = :projects, #lastUpdatedAt = :lastUpdatedAt",
             ExpressionAttributeNames = new Dictionary<string, string>
             {
                 ["#projects"]      = ProjectsAttribute,
@@ -432,16 +444,16 @@ public sealed class DynamoDbSyncStateService(
             },
             ExpressionAttributeValues = new Dictionary<string, AttributeValue>
             {
-                [":newItems"]      = new AttributeValue { L = newItems },
-                [":empty"]         = new AttributeValue { L = [] },
+                [":projects"]      = new AttributeValue { L = mergedItems },
                 [":lastUpdatedAt"] = new AttributeValue { S = lastUpdatedAt.ToString("o") }
             }
         };
 
         await dynamoDb.UpdateItemAsync(updateRequest, cancellationToken);
 
-        logger.LogInformation("Appended {Count} project entries and updated lastUpdatedAt={LastUpdatedAt} for syncType={SyncType}.",
-            newEntries.Count, lastUpdatedAt, syncType);
+        logger.LogInformation(
+            "Upserted {New} project entries (merged total: {Total}) for syncType={SyncType}, lastUpdatedAt={LastUpdatedAt}.",
+            newEntries.Count, mergedItems.Count, syncType, lastUpdatedAt);
     }
 
     public async Task SaveFailedProjectsAsync(

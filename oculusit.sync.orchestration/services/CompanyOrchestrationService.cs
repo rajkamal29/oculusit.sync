@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using oculusit.sync.connectwise.modules;
 using oculusit.sync.connectwise.services;
+using oculusit.sync.core.interfaces;
 using oculusit.sync.core.models;
 using oculusit.sync.keka.modules;
 using oculusit.sync.keka.services;
@@ -14,6 +15,7 @@ public sealed class CompanyOrchestrationService(
     IKekaClientService kekaClientService,
     IKekaCurrencyService kekaCurrencyService,
     IKekaProjectService kekaProjectService,
+    ISyncStateService syncStateService,
     ILogger<CompanyOrchestrationService> logger) : ICompanyOrchestrationService
 {
     public async Task<IReadOnlyList<InitialCompanyEntry>> BuildInitialCompanySnapshotAsync(CancellationToken cancellationToken = default)
@@ -104,6 +106,27 @@ public sealed class CompanyOrchestrationService(
         logger.LogInformation("Fetched {Count} companies from ConnectWise. Starting Keka sync.", companies.Count);
 
         var kekaClientIdByCompanyId = await BuildKekaClientLookupAsync(cancellationToken);
+
+        // Persist existing CW→Keka mappings before processing so that any
+        // companies already mapped in Keka are recorded in DynamoDB upfront.
+        // Only include entries whose CW company ID exists in the current ConnectWise companies list.
+        var cwCompanyIds = companies
+            .Select(c => c.Id.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var existingMappedEntries = kekaClientIdByCompanyId
+            .Where(kv => cwCompanyIds.Contains(kv.Key))
+            .Select(kv => new SyncedCompanyEntry { Id = kv.Key, ClientId = kv.Value })
+            .ToList();
+
+        if (existingMappedEntries.Count > 0)
+        {
+            await syncStateService.UpsertCompaniesAsync(SyncTypes.Company, existingMappedEntries, DateTime.UtcNow, cancellationToken);
+
+            logger.LogInformation(
+                "Full sync: pre-populated Company sync state with {Count} existing CW→Keka mappings.",
+                existingMappedEntries.Count);
+        }
 
         return await ProcessCompaniesAsync(
             companies,

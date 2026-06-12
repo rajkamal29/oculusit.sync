@@ -1,17 +1,20 @@
 using Microsoft.Extensions.Logging;
 using oculusit.sync.connectwise.modules;
 using oculusit.sync.connectwise.services;
+using oculusit.sync.core.interfaces;
 using oculusit.sync.core.models;
 using oculusit.sync.keka.modules;
 using oculusit.sync.keka.services;
 using oculusit.sync.orchestration.mappings;
 using Polly.Timeout;
+using System.Globalization;
 
 namespace oculusit.sync.orchestration.services;
 
 public sealed class ProjectOrchestrationService(
     IConnectWiseProjectService connectWiseProjectService,
     IKekaProjectService kekaProjectService,
+    ISyncStateService syncStateService,
     ILogger<ProjectOrchestrationService> logger) : IProjectOrchestrationService
 {
     public async Task<IReadOnlyList<InitialProjectEntry>> BuildInitialProjectSnapshotAsync(CancellationToken cancellationToken = default)
@@ -127,9 +130,8 @@ public sealed class ProjectOrchestrationService(
         logger.LogInformation("Fetched {Count} existing Keka projects. {Indexed} have a ConnectWise code.",
             allKekaProjects.Count, kekaProjectsByCode.Count);
 
-        // Also build a lookup of existing persisted project entries by CW project ID (for update task-gap detection).
-        // This is passed in via the full-sync flow's projectSyncState — not available here, so we use an empty set.
-        // For full sync the kekaProjectsByCode lookup already handles create-vs-update logic.
+        await PrePopulateProjectSyncStateAsync(projects, kekaProjectsByCode, kekaClientIdByCompanyId, cancellationToken);
+
         var allKeys = ProjectTaskDefinitions.Select(t => t.Key).ToList();
 
         var created = 0;
@@ -405,6 +407,53 @@ public sealed class ProjectOrchestrationService(
             Succeeded = created + updated,
             Failed    = failed
         };
+    }
+
+    /// <summary>
+    /// Persists existing CW→Keka project mappings to DynamoDB before the full sync starts.
+    /// Only includes projects whose CW project ID exists in the current ConnectWise projects list,
+    /// ensuring orphaned or manually created Keka projects are not saved to the sync state.
+    /// </summary>
+    private async Task PrePopulateProjectSyncStateAsync(
+        IReadOnlyList<ConnectWiseProject> cwProjects,
+        IReadOnlyDictionary<string, KekaProject> kekaProjectsByCode,
+        IReadOnlyDictionary<string, string> kekaClientIdByCompanyId,
+        CancellationToken cancellationToken)
+    {
+        var cwProjectIds = cwProjects
+            .Select(p => p.Id.ToString(CultureInfo.InvariantCulture))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var existingMappedEntries = kekaProjectsByCode
+            .Where(kv => cwProjectIds.Contains(kv.Key))
+            .Select(kv =>
+            {
+                var cwProject = cwProjects.First(p =>
+                    p.Id.ToString(CultureInfo.InvariantCulture).Equals(kv.Key, StringComparison.OrdinalIgnoreCase));
+
+                var companyId = cwProject.Company?.Id.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+                kekaClientIdByCompanyId.TryGetValue(companyId, out var kekaClientId);
+
+                return new SyncedProjectEntry
+                {
+                    Id            = kv.Key,
+                    KekaClientId  = kekaClientId,
+                    KekaProjectId = kv.Value.Id
+                };
+            })
+            .ToList();
+
+        if (existingMappedEntries.Count == 0)
+        {
+            logger.LogInformation("Full sync: no existing CW→Keka project mappings found to pre-populate.");
+            return;
+        }
+
+        await syncStateService.UpsertProjectsAsync(SyncTypes.Project, existingMappedEntries, DateTime.UtcNow, cancellationToken);
+
+        logger.LogInformation(
+            "Full sync: pre-populated Project sync state with {Count} existing CW→Keka project mappings.",
+            existingMappedEntries.Count);
     }
 
     /// <summary>

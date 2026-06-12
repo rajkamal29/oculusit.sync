@@ -10,11 +10,11 @@ public interface ISyncStateService
     /// <summary>Persists the sync state for the given sync type.</summary>
     Task SaveAsync(SyncState state, CancellationToken cancellationToken = default);
 
-    /// <summary>Appends new company entries to the existing Companies list and updates LastUpdatedAt.</summary>
-    Task AppendCompaniesAsync(string syncType, IReadOnlyList<SyncedCompanyEntry> newEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
+    /// <summary>Merges company entries into the existing Companies list by ID (update if exists, add if new) and updates LastUpdatedAt.</summary>
+    Task UpsertCompaniesAsync(string syncType, IReadOnlyList<SyncedCompanyEntry> newEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
 
-    /// <summary>Appends new project entries to the existing Projects list and updates LastUpdatedAt.</summary>
-    Task AppendProjectsAsync(string syncType, IReadOnlyList<SyncedProjectEntry> newEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
+    /// <summary>Merges project entries into the existing Projects list by ID (update if exists, add if new) and updates LastUpdatedAt.</summary>
+    Task UpsertProjectsAsync(string syncType, IReadOnlyList<SyncedProjectEntry> newEntries, DateTime lastUpdatedAt, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Overwrites the <c>failedProjects</c> attribute on the <c>FailedProject</c> record with the latest failed project entries.

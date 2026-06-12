@@ -20,7 +20,6 @@ public sealed partial class Worker
             var lastUpdatedAt = await PersistCompanySyncResultAsync(
                 syncedEntries,
                 syncStartedAt,
-                appendCompanyEntries: false,
                 saveSummary: true,
                 stoppingToken);
 
@@ -38,7 +37,6 @@ public sealed partial class Worker
         var lastUpdatedAtIncremental = await PersistCompanySyncResultAsync(
             incrementalResult,
             syncStartedAt,
-            appendCompanyEntries: true,
             saveSummary: true,
             stoppingToken);
 
@@ -125,25 +123,12 @@ public sealed partial class Worker
     private async Task<DateTime> PersistCompanySyncResultAsync(
         CompanySyncResult result,
         DateTime syncStartedAt,
-        bool appendCompanyEntries,
         bool saveSummary,
         CancellationToken stoppingToken)
     {
         var lastUpdatedAt = result.LastRecordUpdatedAt ?? syncStartedAt;
 
-        if (appendCompanyEntries)
-        {
-            await syncStateService.AppendCompaniesAsync(SyncTypes.Company, result.SyncedEntries, lastUpdatedAt, stoppingToken);
-        }
-        else
-        {
-            await syncStateService.SaveAsync(new SyncState
-            {
-                SyncType      = SyncTypes.Company,
-                Companies     = result.SyncedEntries,
-                LastUpdatedAt = lastUpdatedAt
-            }, stoppingToken);
-        }
+        await syncStateService.UpsertCompaniesAsync(SyncTypes.Company, result.SyncedEntries, lastUpdatedAt, stoppingToken);
 
         var failedCompanies = await GetAllFailedCompaniesAsync(result.SyncedEntries, result.FailedEntries, stoppingToken);
 
