@@ -163,7 +163,29 @@ public sealed class ProjectOrchestrationService(
                     continue;
                 }
 
-                if (kekaProjectsByCode.TryGetValue(project.Id.ToString(), out var existing))
+                if (!kekaProjectsByCode.TryGetValue(project.Id.ToString(), out var existing))
+                {
+                    // New project — create in Keka then provision all 6 standard tasks.
+                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, statusMapping);
+                    var kekaProjectId = await kekaProjectService.CreateProjectAsync(request, cancellationToken);
+                    logger.LogInformation("Created Keka project {KekaProjectId} for ConnectWise project {ProjectId} - {ProjectName}.",
+                        kekaProjectId, project.Id, project.Name);
+
+                    // Project was just created — no tasks exist yet, skip the Keka existence check.
+                    await SyncProjectTasksAsync(
+                        kekaProjectId, project.Id.ToString(), project.Name ?? string.Empty,
+                        request.StartDate, request.EndDate, allKeys,
+                        checkKekaForExistingTasks: false, cancellationToken);
+
+                    created++;
+                    syncedEntries.Add(new SyncedProjectEntry
+                    {
+                        Id            = project.Id.ToString(),
+                        KekaClientId  = kekaClientId,
+                        KekaProjectId = kekaProjectId
+                    });
+                }
+                else
                 {
                     // Project already exists in Keka — update it.
                     var updateRequest = KekaProjectMapper.MapToKekaProjectUpdateRequest(project, statusMapping);
