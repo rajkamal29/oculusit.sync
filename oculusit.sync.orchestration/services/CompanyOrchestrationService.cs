@@ -128,8 +128,17 @@ public sealed class CompanyOrchestrationService(
                 existingMappedEntries.Count);
         }
 
+        // Full sync: only process companies that already exist in Keka (update only, no create).
+        var mappedCompanies = companies
+            .Where(c => kekaClientIdByCompanyId.ContainsKey(c.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+            .ToList();
+
+        logger.LogInformation(
+            "Full sync: {Mapped} of {Total} CW companies have an existing Keka client and will be updated. {Skipped} new companies skipped.",
+            mappedCompanies.Count, companies.Count, companies.Count - mappedCompanies.Count);
+
         return await ProcessCompaniesAsync(
-            companies,
+            mappedCompanies,
             kekaClientIdByCompanyId,
             syncLabel: "Full",
             cancellationToken: cancellationToken);
