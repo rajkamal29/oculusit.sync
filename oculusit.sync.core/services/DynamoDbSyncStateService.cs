@@ -1061,8 +1061,8 @@ public sealed class DynamoDbSyncStateService(
 
             if (!response.IsItemSet)
             {
-                const string projectManagerEmail = "Jason.w@oculusit.com";
-                const string projectManagerName = "Jason William";
+                const string projectManagerEmail = "jason_williams@oculusit.com";
+                const string projectManagerName = "Jason Williams";
 
                 var item = new Dictionary<string, AttributeValue>
                 {

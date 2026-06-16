@@ -15,6 +15,8 @@ public sealed class ProjectOrchestrationService(
     IKekaEmployeeService kekaEmployeeService,
     ILogger<ProjectOrchestrationService> logger) : IProjectOrchestrationService
 {
+    private readonly Dictionary<string, KekaEmployee?> employeeCache = new();
+
     public async Task<IReadOnlyList<InitialProjectEntry>> BuildInitialProjectSnapshotAsync(CancellationToken cancellationToken = default)
     {
         var cwProjects = await connectWiseProjectService.GetAllProjectsAsync(cancellationToken);
@@ -168,7 +170,7 @@ public sealed class ProjectOrchestrationService(
 
                 if (projectManager is not null)
                 {
-                    kekaEmployee = await kekaEmployeeService.SearchEmployeeByEmailAsync(projectManager.Email.Trim(), cancellationToken);
+                    kekaEmployee = await GetKekaEmployeeAsync(projectManager.Email.Trim(), cancellationToken);
                 }
                 else
                 {
@@ -360,9 +362,9 @@ public sealed class ProjectOrchestrationService(
                 var projectManager = allEmployeesState.FirstOrDefault(e => e.EmployeeId == project.Manager?.Id.ToString());
                 KekaEmployee? kekaEmployee = null;
 
-                if (projectManager is not null)
+                if (projectManager is not null) 
                 {
-                    kekaEmployee = await kekaEmployeeService.SearchEmployeeByEmailAsync(projectManager.Email.Trim(), cancellationToken);
+                    kekaEmployee = await GetKekaEmployeeAsync(projectManager.Email.Trim(), cancellationToken);
                 }
                 else
                 {
@@ -578,5 +580,17 @@ public sealed class ProjectOrchestrationService(
         }
 
         return failedKeys;
+    }
+
+    public async Task<KekaEmployee?> GetKekaEmployeeAsync(string email, CancellationToken cancellationToken)
+    {
+        if (employeeCache.TryGetValue(email, out var employee))
+            return employee;
+
+        employee = await kekaEmployeeService.SearchEmployeeByEmailAsync(email, cancellationToken);
+
+        employeeCache[email] = employee;
+
+        return employee;
     }
 }

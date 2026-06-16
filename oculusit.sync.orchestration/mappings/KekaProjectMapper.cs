@@ -51,7 +51,6 @@ public static class KekaProjectMapper
             StartDate   = startDate,
             EndDate     = endDate,
             IsBillable  = true,
-            BillingType = BillingType.FixedBid,
             ProjectManager = new List<string> { kekaEmployee?.Id ?? string.Empty }
         };
     }

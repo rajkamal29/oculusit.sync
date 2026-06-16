@@ -61,10 +61,6 @@ public sealed class KekaProjectUpdateRequest
     [JsonPropertyName("isBillable")]
     public bool IsBillable { get; init; }
 
-    /// <summary>Project billing type.</summary>
-    [JsonPropertyName("billingType")]
-    public BillingType BillingType { get; init; }
-
     [JsonPropertyName("projectManager")]
     public IReadOnlyList<string>? ProjectManager { get; init; }
 }
