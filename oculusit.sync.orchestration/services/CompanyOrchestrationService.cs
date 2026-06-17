@@ -394,6 +394,9 @@ public sealed class CompanyOrchestrationService(
         var existingDefaultProject = clientProjects.FirstOrDefault(p =>
             string.Equals(p.Code, projectCode, StringComparison.OrdinalIgnoreCase));
 
+        // BillingType sync state provides the default billing type mappings (billingType → numeric mappedValue).
+        var billingTypeSyncState = await syncStateService.GetAsync(SyncTypes.BillingType, cancellationToken);
+
         string kekaProjectId;
 
         if (existingDefaultProject is null)
@@ -407,7 +410,7 @@ public sealed class CompanyOrchestrationService(
                 StartDate  = startDate,
                 EndDate    = null,
                 IsBillable = true,
-                BillingType = BillingType.FixedBid,
+                BillingType = int.Parse(billingTypeSyncState?.BillingType ?? "0"),
                 ProjectManager = new List<string> { kekaEmployeeId ?? string.Empty }
             };
 

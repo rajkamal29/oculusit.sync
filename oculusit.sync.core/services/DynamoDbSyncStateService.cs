@@ -24,6 +24,7 @@ public sealed class DynamoDbSyncStateService(
     private const string FailedCompaniesAttribute  = "failedCompanies";
     private const string ProjectManagerAttribute   = "projectManager";
     private const string EmailAttribute            = "email";
+    private const string BillingTypeAttribute      = "billingType";
     private const string ProjectStatusesAttribute       = "projectStatuses";
     private const string FailedProjectStatusesAttribute = "failedProjectStatuses";
     private const string IdAttribute               = "id";
@@ -97,6 +98,12 @@ public sealed class DynamoDbSyncStateService(
                     }
                 };
             }
+        }
+
+        string billingType = string.Empty;
+        if (response.Item.TryGetValue(BillingTypeAttribute, out var billingTypeAttr))
+        {
+            billingType = billingTypeAttr.S;
         }
 
         var companies = new List<SyncedCompanyEntry>();
@@ -236,6 +243,7 @@ public sealed class DynamoDbSyncStateService(
             InitialCompanies      = initialCompanies,
             Projects              = projects,
             DefaultProject        = defaultProject,
+            BillingType           = billingType,
             InitialProjects       = initialProjects,
             FailedProjects        = failedProjects,
             FailedCompanies       = failedCompanies,
@@ -1095,6 +1103,56 @@ public sealed class DynamoDbSyncStateService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Error initializing DefaultProject sync type in the database.");
+            throw;
+        }
+    }
+
+    public async Task EnsureBillingTypeAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            logger.LogDebug("Checking if BillingType sync type exists in DynamoDB.");
+
+            var request = new GetItemRequest
+            {
+                TableName = _tableName,
+                Key = new Dictionary<string, AttributeValue>
+                {
+                    [KeyAttribute] = new AttributeValue { S = SyncTypes.BillingType }
+                },
+                ProjectionExpression = KeyAttribute  // Only fetch the key, not the entire item
+            };
+
+            var response = await dynamoDb.GetItemAsync(request, cancellationToken);
+
+            if (!response.IsItemSet)
+            {
+                const int billingType = 1;
+
+                var item = new Dictionary<string, AttributeValue>
+                {
+                    [KeyAttribute] = new AttributeValue { S = SyncTypes.BillingType },
+                    [BillingTypeAttribute] = new AttributeValue { S = billingType.ToString() },
+                    [LastUpdatedAtAttribute] = new AttributeValue { S = DateTime.UtcNow.ToString("o") }
+                };
+
+                var putRequest = new PutItemRequest
+                {
+                    TableName = _tableName,
+                    Item = item
+                };
+
+                await dynamoDb.PutItemAsync(putRequest, cancellationToken);
+                logger.LogInformation("Initialized BillingType sync type with default billing type: {BillingType} (Fixed Fee).", billingType);
+            }
+            else
+            {
+                logger.LogDebug("BillingType sync type already exists in the database.");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error initializing BillingType sync type in the database.");
             throw;
         }
     }

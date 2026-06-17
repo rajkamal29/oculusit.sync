@@ -11,6 +11,7 @@ public static class SyncTypes
     public const string InitialProject = "InitialProject";
     public const string ProjectStatus  = "ProjectStatus";
     public const string DefaultProject = "DefaultProject";
+    public const string BillingType    = "BillingType";
     public const string TimeEntries     = "TimeEntries";
     public const string TimeSheets      = "TimeSheets";
 

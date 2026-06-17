@@ -31,7 +31,7 @@ public sealed class KekaProjectRequest
 
     /// <summary>Project billing type.</summary>
     [JsonPropertyName("billingType")]
-    public BillingType BillingType { get; init; }
+    public int BillingType { get; init; }
 
     [JsonPropertyName("projectManager")]
     public IReadOnlyList<string>? ProjectManager { get; init; }
@@ -113,13 +113,4 @@ public sealed class KekaTaskUpdateRequest
     [JsonPropertyName("phaseId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PhaseId { get; init; }
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter))]
-public enum BillingType
-{
-    NoBilling = 0,          // No billing
-    FixedBid = 1,           // Fixed bid project
-    TimeAndMaterials = 2,   // Time and materials billing
-    Retainer = 4            // Retainer project
 }

@@ -38,6 +38,9 @@ public sealed class SyncState
     /// <summary>Failure record from the most recent project status sync run. Empty when the last run succeeded.</summary>
     public FailedProjectStatusEntry? FailedProjectStatuses { get; init; }
 
+    /// <summary>Default Billing Type configuration (for syncType BillingType).</summary>
+    public string BillingType { get; init; } = string.Empty;
+
     /// <summary>Run-level summary for the Company sync — total processed, succeeded, and failed.</summary>
     public CompanySyncSummary? Summary { get; init; }
 

@@ -32,6 +32,7 @@ public sealed partial class Worker(
             if (initialCompanySyncState is not null && initialProjectSyncState is not null)
             {
                 await syncStateService.EnsureDefaultProjectAsync(stoppingToken);
+                await syncStateService.EnsureBillingTypeAsync(stoppingToken);
                 await SyncProjectStatusAsync(syncStartedAt, stoppingToken);
                 await SyncTimeEntryEmployeesAsync(stoppingToken);
 

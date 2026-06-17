@@ -96,4 +96,10 @@ public interface ISyncStateService
     /// If it doesn't exist, creates it with default project manager information (Jason William).
     /// </summary>
     Task EnsureDefaultProjectAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ensures the BillingType sync type exists in the database.
+    /// If it doesn't exist, creates it with default billing type as 1 (Fixed Fee).
+    /// </summary>
+    Task EnsureBillingTypeAsync(CancellationToken cancellationToken = default);
 }

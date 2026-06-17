@@ -16,6 +16,7 @@ public static class KekaProjectMapper
         ConnectWiseProject project,
         string kekaClientId,
         KekaEmployee? kekaEmployee,
+        string? billingType,
         IReadOnlyDictionary<string, int> statusMapping)
     {
         var (startDate, endDate) = ValidateDates(project);
@@ -30,7 +31,7 @@ public static class KekaProjectMapper
             StartDate   = startDate,
             EndDate     = endDate,
             IsBillable  = true,
-            BillingType = BillingType.FixedBid,
+            BillingType = int.Parse(billingType ?? string.Empty),
             ProjectManager = new List<string> { kekaEmployee?.Id ?? string.Empty }
         };
     }
