@@ -4,29 +4,6 @@ namespace oculusit.sync;
 
 public sealed partial class Worker
 {
-    private async Task SyncInitialProjectsSnapshotAsync(DateTime syncStartedAt, CancellationToken stoppingToken)
-    {
-        var initialProjectSyncState = await syncStateService.GetAsync(SyncTypes.InitialProject, stoppingToken);
-        if (initialProjectSyncState is not null)
-        {
-            logger.LogInformation("InitialProject sync state already exists. Skipping InitialProject snapshot sync.");
-            return;
-        }
-
-        var initialSnapshot = await projectOrchestration.BuildInitialProjectSnapshotAsync(stoppingToken);
-
-        await syncStateService.SaveAsync(new SyncState
-        {
-            SyncType        = SyncTypes.InitialProject,
-            InitialProjects = initialSnapshot,
-            LastUpdatedAt   = syncStartedAt
-        }, stoppingToken);
-
-        logger.LogInformation(
-            "Saved InitialProject snapshot with {Count} rows before full project sync.",
-            initialSnapshot.Count);
-    }
-
     private async Task<IReadOnlyList<FailedProjectEntry>> GetAllFailedProjectsAsync(
         IReadOnlyList<SyncedProjectEntry> syncedEntries,
         IReadOnlyList<FailedProjectEntry> failedEntries,

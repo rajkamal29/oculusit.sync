@@ -47,29 +47,6 @@ public sealed partial class Worker
             incrementalResult.Total, incrementalResult.Succeeded, incrementalResult.Failed, lastUpdatedAtIncremental);
     }
 
-    private async Task SyncInitialCompaniesSnapshotAsync(DateTime syncStartedAt, CancellationToken stoppingToken)
-    {
-        var initialCompanySyncState = await syncStateService.GetAsync(SyncTypes.InitialCompany, stoppingToken);
-        if (initialCompanySyncState is not null)
-        {
-            logger.LogInformation("InitialCompany sync state already exists. Skipping InitialCompany snapshot sync.");
-            return;
-        }
-
-        var initialSnapshot = await companyOrchestration.BuildInitialCompanySnapshotAsync(stoppingToken);
-
-        await syncStateService.SaveAsync(new SyncState
-        {
-            SyncType         = SyncTypes.InitialCompany,
-            InitialCompanies = initialSnapshot,
-            LastUpdatedAt    = syncStartedAt
-        }, stoppingToken);
-
-        logger.LogInformation(
-            "Saved InitialCompany snapshot with {Count} rows before full company sync.",
-            initialSnapshot.Count);
-    }
-
     private async Task<IReadOnlyList<string>> GetRetryCompanyIdsFromSyncStateAsync(CancellationToken stoppingToken)
     {
         var retryCompanies = await syncStateService.GetRetryCompaniesAsync(stoppingToken);
