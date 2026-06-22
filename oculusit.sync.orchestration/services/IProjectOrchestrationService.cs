@@ -5,19 +5,15 @@ namespace oculusit.sync.orchestration;
 public interface IProjectOrchestrationService
 {
     /// <summary>
-    /// Builds an initial full-outer-join snapshot between ConnectWise projects and Keka projects.
-    /// Join key: ConnectWise project Id == Keka project Code.
-    /// </summary>
-    Task<IReadOnlyList<InitialProjectEntry>> BuildInitialProjectSnapshotAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Full sync — fetches all ConnectWise projects and records them.
     /// <paramref name="companySyncState"/> is used to resolve the Keka client ID.
     /// <paramref name="projectStatusSyncState"/> provides the project status mapping from DynamoDB.
+    /// <paramref name="allEmployeesState"/> provides all employees deduplication state from DynamoDB.
     /// </summary>
     Task<ProjectSyncResult> SyncProjectsAsync(
         SyncState companySyncState,
         SyncState? projectStatusSyncState,
+        IReadOnlyList<TimeEntryEmployeeDedupeState> allEmployeesState,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -30,7 +26,8 @@ public interface IProjectOrchestrationService
     Task<ProjectSyncResult> SyncProjectsIncrementalAsync(
         SyncState projectSyncState,
         SyncState companySyncState,
-        SyncState? metadataSyncState,
+        SyncState? projectStatusSyncState,
+        IReadOnlyList<TimeEntryEmployeeDedupeState> allEmployeesState,
         IReadOnlyList<string> retryProjectIds,
         CancellationToken cancellationToken = default);
 }

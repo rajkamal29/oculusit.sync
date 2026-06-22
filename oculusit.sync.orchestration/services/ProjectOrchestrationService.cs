@@ -1,95 +1,25 @@
 using Microsoft.Extensions.Logging;
 using oculusit.sync.connectwise.modules;
 using oculusit.sync.connectwise.services;
+using oculusit.sync.core.interfaces;
 using oculusit.sync.core.models;
 using oculusit.sync.keka.modules;
 using oculusit.sync.keka.services;
 using oculusit.sync.orchestration.mappings;
 using Polly.Timeout;
+using System.Globalization;
 
 namespace oculusit.sync.orchestration.services;
 
 public sealed class ProjectOrchestrationService(
     IConnectWiseProjectService connectWiseProjectService,
     IKekaProjectService kekaProjectService,
+    IKekaEmployeeService kekaEmployeeService,
+    ISyncStateService syncStateService,
     ILogger<ProjectOrchestrationService> logger) : IProjectOrchestrationService
 {
-    public async Task<IReadOnlyList<InitialProjectEntry>> BuildInitialProjectSnapshotAsync(CancellationToken cancellationToken = default)
-    {
-        var cwProjects = await connectWiseProjectService.GetAllProjectsAsync(cancellationToken);
-        var kekaProjects = await kekaProjectService.GetAllProjectsAsync(cancellationToken);
+    private readonly Dictionary<string, KekaEmployee?> employeeCache = new();
 
-        logger.LogInformation(
-            "Building initial project snapshot from {ConnectWiseCount} ConnectWise projects and {KekaCount} Keka projects.",
-            cwProjects.Count, kekaProjects.Count);
-
-        var snapshots = new List<InitialProjectEntry>();
-
-        var cwById = cwProjects
-            .GroupBy(p => p.Id.ToString())
-            .ToDictionary(g => g.Key, g => g.First());
-
-        var kekaByCode = new Dictionary<string, KekaProject>(StringComparer.OrdinalIgnoreCase);
-        foreach (var kp in kekaProjects)
-        {
-            var code = kp.Code?.Trim();
-            if (string.IsNullOrWhiteSpace(code))
-                continue;
-
-            if (!kekaByCode.TryAdd(code, kp))
-            {
-                logger.LogWarning(
-                    "Duplicate Keka project code {Code} found. Keeping first and ignoring project {ProjectId}.",
-                    code, kp.Id);
-            }
-        }
-
-        foreach (var cp in cwProjects)
-        {
-            var cwId = cp.Id.ToString();
-            if (kekaByCode.TryGetValue(cwId, out var matchedKeka))
-            {
-                snapshots.Add(new InitialProjectEntry
-                {
-                    ProjectId       = cwId,
-                    ProjectName     = cp.Name ?? string.Empty,
-                    KekaProjectId   = matchedKeka.Id,
-                    KekaProjectCode = matchedKeka.Code ?? string.Empty,
-                    KekaProjectName = matchedKeka.Name ?? string.Empty
-                });
-            }
-            else
-            {
-                snapshots.Add(new InitialProjectEntry
-                {
-                    ProjectId       = cwId,
-                    ProjectName     = cp.Name ?? string.Empty,
-                    KekaProjectId   = string.Empty,
-                    KekaProjectCode = string.Empty,
-                    KekaProjectName = string.Empty
-                });
-            }
-        }
-
-        foreach (var kp in kekaProjects)
-        {
-            var code = kp.Code?.Trim();
-            if (!string.IsNullOrWhiteSpace(code) && cwById.ContainsKey(code))
-                continue;
-
-            snapshots.Add(new InitialProjectEntry
-            {
-                ProjectId       = string.Empty,
-                ProjectName     = string.Empty,
-                KekaProjectId   = kp.Id,
-                KekaProjectCode = kp.Code ?? string.Empty,
-                KekaProjectName = kp.Name ?? string.Empty
-            });
-        }
-
-        logger.LogInformation("Initial project snapshot built with {Count} rows.", snapshots.Count);
-        return snapshots;
-    }
     /// <summary>
     /// The 6 standard tasks to create for every Keka project.
     /// Key = short code stored in DynamoDB; Name = display name sent to Keka;
@@ -107,6 +37,7 @@ public sealed class ProjectOrchestrationService(
     public async Task<ProjectSyncResult> SyncProjectsAsync(
         SyncState companySyncState,
         SyncState? projectStatusSyncState,
+        IReadOnlyList<TimeEntryEmployeeDedupeState> allEmployeesState,
         CancellationToken cancellationToken = default)
     {
         var projects = await connectWiseProjectService.GetAllProjectsAsync(cancellationToken);
@@ -127,9 +58,15 @@ public sealed class ProjectOrchestrationService(
         logger.LogInformation("Fetched {Count} existing Keka projects. {Indexed} have a ConnectWise code.",
             allKekaProjects.Count, kekaProjectsByCode.Count);
 
-        // Also build a lookup of existing persisted project entries by CW project ID (for update task-gap detection).
-        // This is passed in via the full-sync flow's projectSyncState — not available here, so we use an empty set.
-        // For full sync the kekaProjectsByCode lookup already handles create-vs-update logic.
+        // Full sync: only process projects that already exist in Keka (update only, no create).
+        var mappedProjects = projects
+            .Where(p => kekaProjectsByCode.ContainsKey(p.Id.ToString(CultureInfo.InvariantCulture)))
+            .ToList();
+
+        logger.LogInformation(
+            "Full sync: {Mapped} of {Total} CW projects have an existing Keka project and will be updated. {Skipped} new projects skipped.",
+            mappedProjects.Count, projects.Count, projects.Count - mappedProjects.Count);
+
         var allKeys = ProjectTaskDefinitions.Select(t => t.Key).ToList();
 
         var created = 0;
@@ -140,7 +77,7 @@ public sealed class ProjectOrchestrationService(
         var failedEntries = new List<FailedProjectEntry>();
         var retryEntries  = new List<RetryProjectEntry>();
 
-        foreach (var project in projects)
+        foreach (var project in mappedProjects)
         {
             try
             {
@@ -161,16 +98,34 @@ public sealed class ProjectOrchestrationService(
                     continue;
                 }
 
+                var projectManager = allEmployeesState.FirstOrDefault(e => e.EmployeeId == project.Manager?.Id.ToString());
+                KekaEmployee? kekaEmployee = null;
+
+                if (projectManager is not null)
+                {
+                    kekaEmployee = await GetKekaEmployeeAsync(projectManager.Email.Trim(), cancellationToken);
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "TimeEntries#{MemberId} not found in DB. " +
+                        "Project manager member exists in ConnectWise but has no employee checkpoint record.",
+                        project.Manager?.Id);
+                }
+
                 if (!kekaProjectsByCode.TryGetValue(project.Id.ToString(), out var existing))
                 {
                     // New project — create in Keka then provision all 6 standard tasks.
-                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, statusMapping);
+
+                    // BillingType sync state provides the default billing type mappings value (billingType → numeric mappedValue).
+                    var billingTypeSyncState = await syncStateService.GetAsync(SyncTypes.BillingType, cancellationToken);
+                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, kekaEmployee, billingTypeSyncState?.BillingType, statusMapping);
                     var kekaProjectId = await kekaProjectService.CreateProjectAsync(request, cancellationToken);
                     logger.LogInformation("Created Keka project {KekaProjectId} for ConnectWise project {ProjectId} - {ProjectName}.",
                         kekaProjectId, project.Id, project.Name);
 
                     // Project was just created — no tasks exist yet, skip the Keka existence check.
-                    var failedTaskKeys = await SyncProjectTasksAsync(
+                    await SyncProjectTasksAsync(
                         kekaProjectId, project.Id.ToString(), project.Name ?? string.Empty,
                         request.StartDate, request.EndDate, allKeys,
                         checkKekaForExistingTasks: false, cancellationToken);
@@ -178,38 +133,31 @@ public sealed class ProjectOrchestrationService(
                     created++;
                     syncedEntries.Add(new SyncedProjectEntry
                     {
-                        Id             = project.Id.ToString(),
-                        KekaClientId   = kekaClientId,
-                        KekaProjectId  = kekaProjectId,
-                        FailedTaskKeys = failedTaskKeys
+                        Id            = project.Id.ToString(),
+                        KekaClientId  = kekaClientId,
+                        KekaProjectId = kekaProjectId
                     });
                 }
                 else
                 {
                     // Project already exists in Keka — update it.
-                    var updateRequest = KekaProjectMapper.MapToKekaProjectUpdateRequest(project, statusMapping);
+                    var updateRequest = KekaProjectMapper.MapToKekaProjectUpdateRequest(project, kekaEmployee, statusMapping);
                     await kekaProjectService.UpdateProjectAsync(existing.Id, updateRequest, cancellationToken);
                     logger.LogInformation("Updated Keka project {KekaProjectId} for ConnectWise project {ProjectId} - {ProjectName}.",
                         existing.Id, project.Id, project.Name);
                     updated++;
 
-                    // Full sync has no DynamoDB state — use Keka API as source of truth to
-                    // skip tasks that already exist and only create the ones that are missing.
-                    logger.LogInformation(
-                        "Full sync: No DynamoDB task state for project {ProjectId} - {ProjectName}. Checking Keka for existing tasks.",
-                        project.Id, project.Name);
-
-                    var failedTaskKeys = await SyncProjectTasksAsync(
+                    // Use Keka API as source of truth — skip tasks that already exist, create missing ones.
+                    await SyncProjectTasksAsync(
                         existing.Id, project.Id.ToString(), project.Name ?? string.Empty,
                         updateRequest.StartDate, updateRequest.EndDate, allKeys,
                         checkKekaForExistingTasks: true, cancellationToken);
 
                     syncedEntries.Add(new SyncedProjectEntry
                     {
-                        Id             = project.Id.ToString(),
-                        KekaClientId   = kekaClientId,
-                        KekaProjectId  = existing.Id,
-                        FailedTaskKeys = failedTaskKeys
+                        Id            = project.Id.ToString(),
+                        KekaClientId  = kekaClientId,
+                        KekaProjectId = existing.Id
                     });
                 }
             }
@@ -260,6 +208,7 @@ public sealed class ProjectOrchestrationService(
         SyncState projectSyncState,
         SyncState companySyncState,
         SyncState? projectStatusSyncState,
+        IReadOnlyList<TimeEntryEmployeeDedupeState> allEmployeesState,
         IReadOnlyList<string> retryProjectIds,
         CancellationToken cancellationToken = default)
     {
@@ -298,14 +247,9 @@ public sealed class ProjectOrchestrationService(
         var statusMapping = KekaProjectMapper.BuildStatusMapping(projectStatusSyncState?.ProjectStatuses ?? []);
         logger.LogInformation("Loaded {Count} project status mappings.", statusMapping.Count);
 
-        // Full lookup of persisted entries keyed by CW project ID — used for both create-vs-update
-        // detection and task-gap detection on the update path.
-        var knownProjectEntries = projectSyncState.Projects
-            .ToDictionary(p => p.Id);
-
-        // Flat project-ID → KekaProjectId lookup for the create-vs-update gate.
-        var knownProjects = knownProjectEntries
-            .ToDictionary(kv => kv.Key, kv => kv.Value.KekaProjectId);
+        // CW project ID → Keka project ID — used for the create-vs-update gate.
+        var knownProjects = projectSyncState.Projects
+            .ToDictionary(p => p.Id, p => p.KekaProjectId);
 
         var allKeys = ProjectTaskDefinitions.Select(t => t.Key).ToList();
 
@@ -339,58 +283,54 @@ public sealed class ProjectOrchestrationService(
                     continue;
                 }
 
+                var projectManager = allEmployeesState.FirstOrDefault(e => e.EmployeeId == project.Manager?.Id.ToString());
+                KekaEmployee? kekaEmployee = null;
+
+                if (projectManager is not null) 
+                {
+                    kekaEmployee = await GetKekaEmployeeAsync(projectManager.Email.Trim(), cancellationToken);
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "TimeEntries#{MemberId} not found in DB. " +
+                        "Project manager member exists in ConnectWise but has no employee checkpoint record.",
+                        project.Manager?.Id);
+                }
+
                 var projectIdStr = project.Id.ToString();
 
                 if (knownProjects.TryGetValue(projectIdStr, out var existingKekaProjectId)
                     && !string.IsNullOrEmpty(existingKekaProjectId))
                 {
                     // Known project — update in Keka.
-                    var updateRequest = KekaProjectMapper.MapToKekaProjectUpdateRequest(project, statusMapping);
+                    var updateRequest = KekaProjectMapper.MapToKekaProjectUpdateRequest(project, kekaEmployee, statusMapping);
                     await kekaProjectService.UpdateProjectAsync(existingKekaProjectId, updateRequest, cancellationToken);
                     logger.LogInformation(
                         "Incremental: Updated Keka project {KekaProjectId} for ConnectWise project {ProjectId} - {ProjectName}.",
                         existingKekaProjectId, project.Id, project.Name);
                     updated++;
-
-                    // Check if any tasks are missing (never created or previously failed) and retry them.
-                    knownProjectEntries.TryGetValue(projectIdStr, out var persistedEntry);
-                    var previouslyFailed = persistedEntry?.FailedTaskKeys ?? [];
-
-                    // Keys to retry = all previously failed task keys.
-                    var keysToRetry = previouslyFailed.Count > 0 ? previouslyFailed : [];
-
-                    if (keysToRetry.Count > 0)
+                    newEntries.Add(new SyncedProjectEntry
                     {
-                        logger.LogInformation(
-                            "Incremental: Retrying {Count} failed task(s) [{Keys}] for project {ProjectId} - {ProjectName}.",
-                            keysToRetry.Count, string.Join(", ", keysToRetry), project.Id, project.Name);
-
-                        // State is source of truth — keysToRetry are derived from persisted FailedTaskKeys.
-                        var retriedFailedKeys = await SyncProjectTasksAsync(
-                            existingKekaProjectId, projectIdStr, project.Name ?? string.Empty,
-                            updateRequest.StartDate, updateRequest.EndDate, keysToRetry,
-                            checkKekaForExistingTasks: false, cancellationToken);
-
-                        newEntries.Add(new SyncedProjectEntry
-                        {
-                            Id             = projectIdStr,
-                            KekaClientId   = persistedEntry?.KekaClientId,
-                            KekaProjectId  = existingKekaProjectId,
-                            FailedTaskKeys = retriedFailedKeys   // reset to only the latest failures
-                        });
-                    }
+                        Id            = projectIdStr,
+                        KekaClientId  = kekaClientId,
+                        KekaProjectId = existingKekaProjectId
+                    });
                 }
                 else
                 {
                     // New project — create in Keka then provision all 6 standard tasks.
-                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, statusMapping);
+
+                    // BillingType sync state provides the default billing type mappings (billingType → numeric).
+                    var billingTypeSyncState = await syncStateService.GetAsync(SyncTypes.BillingType, cancellationToken);
+                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, kekaEmployee, billingTypeSyncState?.BillingType, statusMapping);
                     var kekaProjectId = await kekaProjectService.CreateProjectAsync(request, cancellationToken);
                     logger.LogInformation(
                         "Incremental: Created Keka project {KekaProjectId} for ConnectWise project {ProjectId} - {ProjectName}.",
                         kekaProjectId, project.Id, project.Name);
 
                     // Project was just created — no tasks exist yet, skip the Keka existence check.
-                    var failedTaskKeys = await SyncProjectTasksAsync(
+                    await SyncProjectTasksAsync(
                         kekaProjectId, projectIdStr, project.Name ?? string.Empty,
                         request.StartDate, request.EndDate, allKeys,
                         checkKekaForExistingTasks: false, cancellationToken);
@@ -398,10 +338,9 @@ public sealed class ProjectOrchestrationService(
                     created++;
                     newEntries.Add(new SyncedProjectEntry
                     {
-                        Id             = projectIdStr,
-                        KekaClientId   = kekaClientId,
-                        KekaProjectId  = kekaProjectId,
-                        FailedTaskKeys = failedTaskKeys
+                        Id            = projectIdStr,
+                        KekaClientId  = kekaClientId,
+                        KekaProjectId = kekaProjectId
                     });
                 }
             }
@@ -448,6 +387,7 @@ public sealed class ProjectOrchestrationService(
         };
     }
 
+
     /// <summary>
     /// Attempts to create only the tasks identified by <paramref name="keysToCreate"/> under the given
     /// Keka project. Before creating, fetches existing tasks from Keka and skips any whose display name
@@ -459,19 +399,18 @@ public sealed class ProjectOrchestrationService(
     /// Each task is attempted independently; a failure on one does not abort the others.
     /// Task IDs are not stored — Keka API is the source of truth for existing tasks.
     /// </summary>
-    private async Task<List<string>> SyncProjectTasksAsync(
+    private async Task SyncProjectTasksAsync(
         string kekaProjectId,
         string cwProjectId,
         string cwProjectName,
         DateTime startDate,
-        DateTime endDate,
+        DateTime? endDate,
         IEnumerable<string> keysToCreate,
         bool checkKekaForExistingTasks,
         CancellationToken cancellationToken)
     {
-        var failedKeys = new List<string>();
         var taskStartDate = startDate.Date;
-        var taskEndDate = endDate.Date;
+        var taskEndDate = endDate?.Date ?? DateTime.MaxValue;
 
         var definitionsByKey = ProjectTaskDefinitions.ToDictionary(t => t.Key, t => (t.Name, t.BillingType));
 
@@ -537,13 +476,22 @@ public sealed class ProjectOrchestrationService(
             }
             catch (Exception ex)
             {
-                failedKeys.Add(key);
                 logger.LogError(ex,
                     "Failed to create Keka task '{TaskName}' ({Key}) for project {CwProjectId} - {CwProjectName}.",
                     name, key, cwProjectId, cwProjectName);
             }
         }
+    }
 
-        return failedKeys;
+    public async Task<KekaEmployee?> GetKekaEmployeeAsync(string email, CancellationToken cancellationToken)
+    {
+        if (employeeCache.TryGetValue(email, out var employee))
+            return employee;
+
+        employee = await kekaEmployeeService.SearchEmployeeByEmailAsync(email, cancellationToken);
+
+        employeeCache[email] = employee;
+
+        return employee;
     }
 }

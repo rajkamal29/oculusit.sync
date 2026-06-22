@@ -193,7 +193,9 @@ public sealed class KekaProjectService(
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogError("Failed to create Keka project. StatusCode: {StatusCode}, Body: {Body}",
                 response.StatusCode, errorBody);
-            return string.Empty;
+            throw new HttpRequestException(
+                $"Keka POST /psa/projects failed ({(int)response.StatusCode}): {errorBody}",
+                null, response.StatusCode);
         }
 
         var envelope = await response.Content
@@ -387,7 +389,9 @@ public sealed class KekaProjectService(
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogError("Failed to create Keka project allocation for project {ProjectId}. StatusCode: {StatusCode}, Body: {Body}",
                 projectId, response.StatusCode, errorBody);
-            return string.Empty;
+            throw new HttpRequestException(
+                $"Keka POST /psa/projects/{projectId}/allocations failed ({(int)response.StatusCode}): {errorBody}",
+                null, response.StatusCode);
         }
 
         var envelope = await response.Content

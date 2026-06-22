@@ -11,16 +11,17 @@ public sealed partial class Worker
         CancellationToken stoppingToken)
     {
         var syncState = await syncStateService.GetAsync(SyncTypes.Company, stoppingToken);
+        var defaultProjectSyncState = await syncStateService.GetAsync(SyncTypes.DefaultProject, stoppingToken);
+        var defaultProject = defaultProjectSyncState?.DefaultProject;
 
         if (syncState is null)
         {
             logger.LogInformation("No previous sync state found in DynamoDB. Running full company sync.");
 
-            var syncedEntries = await companyOrchestration.SyncCompaniesToKekaAsync(stoppingToken);
+            var syncedEntries = await companyOrchestration.SyncCompaniesToKekaAsync(defaultProject, stoppingToken);
             var lastUpdatedAt = await PersistCompanySyncResultAsync(
                 syncedEntries,
                 syncStartedAt,
-                appendCompanyEntries: false,
                 saveSummary: true,
                 stoppingToken);
 
@@ -33,41 +34,17 @@ public sealed partial class Worker
 
         logger.LogInformation("Incremental company sync. Last sync was at {LastUpdatedAt}.", syncState.LastUpdatedAt);
 
-        var incrementalResult = await companyOrchestration.SyncCompaniesIncrementalAsync(syncState, retryCompanyIds, stoppingToken);
+        var incrementalResult = await companyOrchestration.SyncCompaniesIncrementalAsync(syncState, defaultProject, retryCompanyIds, stoppingToken);
 
         var lastUpdatedAtIncremental = await PersistCompanySyncResultAsync(
             incrementalResult,
             syncStartedAt,
-            appendCompanyEntries: true,
             saveSummary: true,
             stoppingToken);
 
         logger.LogInformation(
             "Incremental company sync complete. Total: {Total}, Succeeded: {Succeeded}, Failed: {Failed}. LastRecordUpdatedAt: {LastRecordUpdatedAt}.",
             incrementalResult.Total, incrementalResult.Succeeded, incrementalResult.Failed, lastUpdatedAtIncremental);
-    }
-
-    private async Task SyncInitialCompaniesSnapshotAsync(DateTime syncStartedAt, CancellationToken stoppingToken)
-    {
-        var initialCompanySyncState = await syncStateService.GetAsync(SyncTypes.InitialCompany, stoppingToken);
-        if (initialCompanySyncState is not null)
-        {
-            logger.LogInformation("InitialCompany sync state already exists. Skipping InitialCompany snapshot sync.");
-            return;
-        }
-
-        var initialSnapshot = await companyOrchestration.BuildInitialCompanySnapshotAsync(stoppingToken);
-
-        await syncStateService.SaveAsync(new SyncState
-        {
-            SyncType         = SyncTypes.InitialCompany,
-            InitialCompanies = initialSnapshot,
-            LastUpdatedAt    = syncStartedAt
-        }, stoppingToken);
-
-        logger.LogInformation(
-            "Saved InitialCompany snapshot with {Count} rows before full company sync.",
-            initialSnapshot.Count);
     }
 
     private async Task<IReadOnlyList<string>> GetRetryCompanyIdsFromSyncStateAsync(CancellationToken stoppingToken)
@@ -125,25 +102,12 @@ public sealed partial class Worker
     private async Task<DateTime> PersistCompanySyncResultAsync(
         CompanySyncResult result,
         DateTime syncStartedAt,
-        bool appendCompanyEntries,
         bool saveSummary,
         CancellationToken stoppingToken)
     {
         var lastUpdatedAt = result.LastRecordUpdatedAt ?? syncStartedAt;
 
-        if (appendCompanyEntries)
-        {
-            await syncStateService.AppendCompaniesAsync(SyncTypes.Company, result.SyncedEntries, lastUpdatedAt, stoppingToken);
-        }
-        else
-        {
-            await syncStateService.SaveAsync(new SyncState
-            {
-                SyncType      = SyncTypes.Company,
-                Companies     = result.SyncedEntries,
-                LastUpdatedAt = lastUpdatedAt
-            }, stoppingToken);
-        }
+        await syncStateService.UpsertCompaniesAsync(SyncTypes.Company, result.SyncedEntries, lastUpdatedAt, stoppingToken);
 
         var failedCompanies = await GetAllFailedCompaniesAsync(result.SyncedEntries, result.FailedEntries, stoppingToken);
 

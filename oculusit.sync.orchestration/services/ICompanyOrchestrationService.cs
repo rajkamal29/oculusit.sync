@@ -5,16 +5,10 @@ namespace oculusit.sync.orchestration;
 public interface ICompanyOrchestrationService
 {
     /// <summary>
-    /// Builds an initial full-outer-join snapshot between ConnectWise companies and Keka clients.
-    /// Join key: ConnectWise company Id == Keka client Code.
-    /// </summary>
-    Task<IReadOnlyList<InitialCompanyEntry>> BuildInitialCompanySnapshotAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Full sync — fetches all ConnectWise companies and creates or updates Keka clients.
     /// Returns all synced company-to-client mappings and any failures.
     /// </summary>
-    Task<CompanySyncResult> SyncCompaniesToKekaAsync(CancellationToken cancellationToken = default);
+    Task<CompanySyncResult> SyncCompaniesToKekaAsync(DefaultProjectEntry? defaultProject, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Incremental sync — fetches companies updated since <paramref name="syncState"/>.LastUpdatedAt
@@ -23,6 +17,7 @@ public interface ICompanyOrchestrationService
     /// </summary>
     Task<CompanySyncResult> SyncCompaniesIncrementalAsync(
         SyncState syncState,
+        DefaultProjectEntry? defaultProject,
         IReadOnlyList<string> retryCompanyIds,
         CancellationToken cancellationToken = default);
 }

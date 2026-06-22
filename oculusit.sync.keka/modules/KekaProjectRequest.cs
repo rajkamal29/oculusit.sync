@@ -24,10 +24,17 @@ public sealed class KekaProjectRequest
     public DateTime StartDate { get; init; }
 
     [JsonPropertyName("endDate")]
-    public DateTime EndDate { get; init; }
+    public DateTime? EndDate { get; init; }
 
     [JsonPropertyName("isBillable")]
     public bool IsBillable { get; init; }
+
+    /// <summary>Project billing type.</summary>
+    [JsonPropertyName("billingType")]
+    public int BillingType { get; init; }
+
+    [JsonPropertyName("projectManager")]
+    public IReadOnlyList<string>? ProjectManager { get; init; }
 }
 
 public sealed class KekaProjectUpdateRequest
@@ -53,6 +60,9 @@ public sealed class KekaProjectUpdateRequest
 
     [JsonPropertyName("isBillable")]
     public bool IsBillable { get; init; }
+
+    [JsonPropertyName("projectManager")]
+    public IReadOnlyList<string>? ProjectManager { get; init; }
 }
 
 public sealed class KekaTaskRequest

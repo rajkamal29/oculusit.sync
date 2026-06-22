@@ -26,27 +26,17 @@ public sealed partial class Worker(
 
             var syncStartedAt = DateTime.UtcNow;
 
-            var initialCompanySyncState = await syncStateService.GetAsync(SyncTypes.InitialCompany, stoppingToken);
-            var initialProjectSyncState = await syncStateService.GetAsync(SyncTypes.InitialProject, stoppingToken);
+            await syncStateService.EnsureDefaultProjectAsync(stoppingToken);
+            await syncStateService.EnsureBillingTypeAsync(stoppingToken);
+            await SyncProjectStatusAsync(syncStartedAt, stoppingToken);
+            await SyncTimeEntryEmployeesAsync(stoppingToken);
 
-            if (initialCompanySyncState is not null && initialProjectSyncState is not null)
-            {
-                await syncStateService.EnsureDefaultProjectAsync(stoppingToken);
-
-                await SyncProjectStatusAsync(syncStartedAt, stoppingToken);
-                var retryCompanyIds = await GetRetryCompanyIdsFromSyncStateAsync(stoppingToken);
-                await SyncCompaniesAsync(syncStartedAt, retryCompanyIds, stoppingToken);
-                var retryProjectIds = await GetRetryProjectIdsFromSyncStateAsync(stoppingToken);
-                await SyncProjectsAsync(syncStartedAt, retryProjectIds, stoppingToken);
-                await SyncTimeEntryEmployeesAsync(stoppingToken);
-                var retryTimeSheetIds = await GetRetryTimeSheetIdsFromSyncStateAsync(stoppingToken);
-                await SyncTimeSheetAsync(retryTimeSheetIds, stoppingToken);
-            }
-            else
-            {
-                await SyncInitialCompaniesSnapshotAsync(syncStartedAt, stoppingToken);
-                await SyncInitialProjectsSnapshotAsync(syncStartedAt, stoppingToken);
-            }
+            var retryCompanyIds = await GetRetryCompanyIdsFromSyncStateAsync(stoppingToken);
+            await SyncCompaniesAsync(syncStartedAt, retryCompanyIds, stoppingToken);
+            var retryProjectIds = await GetRetryProjectIdsFromSyncStateAsync(stoppingToken);
+            await SyncProjectsAsync(syncStartedAt, retryProjectIds, stoppingToken);
+            var retryTimeSheetIds = await GetRetryTimeSheetIdsFromSyncStateAsync(stoppingToken);
+            await SyncTimeSheetAsync(stoppingToken);
 
             logger.LogInformation("Sync complete. Worker shutting down.");
         }

@@ -15,6 +15,8 @@ public static class KekaProjectMapper
     public static KekaProjectRequest MapToKekaProjectRequest(
         ConnectWiseProject project,
         string kekaClientId,
+        KekaEmployee? kekaEmployee,
+        string? billingType,
         IReadOnlyDictionary<string, int> statusMapping)
     {
         var (startDate, endDate) = ValidateDates(project);
@@ -28,12 +30,15 @@ public static class KekaProjectMapper
             Status      = MapStatus(project.Status?.Name, statusMapping),
             StartDate   = startDate,
             EndDate     = endDate,
-            IsBillable  = true
+            IsBillable  = true,
+            BillingType = int.Parse(billingType ?? string.Empty),
+            ProjectManager = new List<string> { kekaEmployee?.Id ?? string.Empty }
         };
     }
 
     public static KekaProjectUpdateRequest MapToKekaProjectUpdateRequest(
         ConnectWiseProject project,
+        KekaEmployee? kekaEmployee,
         IReadOnlyDictionary<string, int> statusMapping)
     {
         var (startDate, endDate) = ValidateDates(project);
@@ -46,7 +51,8 @@ public static class KekaProjectMapper
             Status      = MapStatus(project.Status?.Name, statusMapping),
             StartDate   = startDate,
             EndDate     = endDate,
-            IsBillable  = true
+            IsBillable  = true,
+            ProjectManager = new List<string> { kekaEmployee?.Id ?? string.Empty }
         };
     }
 
@@ -79,9 +85,6 @@ public static class KekaProjectMapper
 
         if (startDate is null)
             invalidFields.Add("EstimatedStart");
-
-        if (endDate is null)
-            invalidFields.Add("EstimatedEnd");
 
         if (invalidFields.Count > 0)
             throw new InvalidOperationException(

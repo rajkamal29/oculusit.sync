@@ -38,6 +38,9 @@ public sealed class SyncState
     /// <summary>Failure record from the most recent project status sync run. Empty when the last run succeeded.</summary>
     public FailedProjectStatusEntry? FailedProjectStatuses { get; init; }
 
+    /// <summary>Default Billing Type configuration (for syncType BillingType).</summary>
+    public string BillingType { get; init; } = string.Empty;
+
     /// <summary>Run-level summary for the Company sync — total processed, succeeded, and failed.</summary>
     public CompanySyncSummary? Summary { get; init; }
 
@@ -140,12 +143,6 @@ public sealed class SyncedProjectEntry
     /// <summary>Keka project ID.</summary>
     public string? KekaProjectId { get; init; }
 
-    /// <summary>
-    /// Short-code keys of tasks that failed to be created on the last run.
-    /// These will be retried on the next update pass via the Keka API.
-    /// Empty means all 6 tasks were successfully provisioned.
-    /// </summary>
-    public List<string> FailedTaskKeys { get; init; } = [];
 }
 
 /// <summary>Records a ConnectWise project that failed to sync to Keka.</summary>

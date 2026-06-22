@@ -8,6 +8,44 @@ public sealed class ProjectStatusOrchestrationService(
     IConnectWiseProjectService connectWiseProjectService,
     ILogger<ProjectStatusOrchestrationService> logger) : IProjectStatusOrchestrationService
 {
+    // ConnectWise status name → Keka integer value
+    // Completed=1, InProgress=0, Cancelled=2, NotStarted=3, OnHold=4
+    private static readonly Dictionary<string, string> CwStatusMappings =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Completed"]                        = "1",
+            ["Closed"]                           = "1",
+            ["Closed - Not Implemented"]         = "1",
+            ["4. Closed"]                        = "1",
+
+            ["In Progress"]                      = "0",
+            ["2. In Progress"]                   = "0",
+            ["Discovery/Scoping"]                = "0",
+            ["Implementation"]                   = "0",
+            ["Implementation - Phase I"]         = "0",
+            ["Implementation - Phase IV"]        = "0",
+            ["Implementation - Phase VI"]        = "0",
+            ["Waiting on client Signoff"]        = "0",
+            ["Waiting Client Reply"]             = "0",
+            ["Soft Launched"]                    = "0",
+            ["UAT"]                              = "0",
+            ["Internal QA"]                      = "0",
+            ["Not initiated by Sales or CS"]     = "0",
+
+            ["Terminated"]                       = "2",
+
+            ["Not Started"]                      = "3",
+            ["1. New"]                           = "3",
+
+            ["On-Hold"]                          = "4",
+        };
+
+    private static string ResolveDefaultMappedValue(string? cwStatusName) =>
+        !string.IsNullOrWhiteSpace(cwStatusName) &&
+        CwStatusMappings.TryGetValue(cwStatusName, out var mapped)
+            ? mapped
+            : string.Empty;
+
     public async Task<ProjectStatusSyncResult> SyncProjectStatusesAsync(
         IReadOnlyList<ProjectStatusEntry> existing,
         CancellationToken cancellationToken = default)
@@ -27,7 +65,10 @@ public sealed class ProjectStatusOrchestrationService(
         var merged = cwStatuses.Select(s =>
         {
             var id = s.Id.ToString();
-            var mappedValue = existingById.TryGetValue(id, out var prev) ? prev.MappedValue : string.Empty;
+            // Preserve any manually set mapped value; auto-resolve for new or blank entries.
+            var mappedValue = existingById.TryGetValue(id, out var prev) && !string.IsNullOrEmpty(prev.MappedValue)
+                ? prev.MappedValue
+                : ResolveDefaultMappedValue(s.Name);
 
             return new ProjectStatusEntry
             {
