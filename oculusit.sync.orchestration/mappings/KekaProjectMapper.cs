@@ -51,7 +51,6 @@ public static class KekaProjectMapper
             Status      = MapStatus(project.Status?.Name, statusMapping),
             StartDate   = startDate,
             EndDate     = endDate,
-            IsBillable  = true,
             ProjectManager = new List<string> { kekaEmployee?.Id ?? string.Empty }
         };
     }

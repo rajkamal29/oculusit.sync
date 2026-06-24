@@ -36,7 +36,7 @@ public sealed partial class Worker(
             var retryProjectIds = await GetRetryProjectIdsFromSyncStateAsync(stoppingToken);
             await SyncProjectsAsync(syncStartedAt, retryProjectIds, stoppingToken);
             var retryTimeSheetIds = await GetRetryTimeSheetIdsFromSyncStateAsync(stoppingToken);
-            await SyncTimeSheetAsync(stoppingToken);
+            await SyncTimeSheetAsync(retryTimeSheetIds, stoppingToken);
 
             logger.LogInformation("Sync complete. Worker shutting down.");
         }

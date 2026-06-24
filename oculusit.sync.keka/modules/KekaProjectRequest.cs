@@ -58,9 +58,6 @@ public sealed class KekaProjectUpdateRequest
     [JsonPropertyName("endDate")]
     public DateTime EndDate { get; init; }
 
-    [JsonPropertyName("isBillable")]
-    public bool IsBillable { get; init; }
-
     [JsonPropertyName("projectManager")]
     public IReadOnlyList<string>? ProjectManager { get; init; }
 }

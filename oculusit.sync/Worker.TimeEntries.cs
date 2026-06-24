@@ -196,7 +196,7 @@ public sealed partial class Worker
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex,
+                    logger.LogWarning(
                         "Error processing timesheet {TimesheetId} (member={MemberId}, {Year}/{Period}). Exception: {ExceptionMessage}",
                         timesheet.Id, memberId, timesheet.Year, timesheet.Period, ex.Message);
 
