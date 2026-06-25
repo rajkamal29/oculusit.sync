@@ -1,4 +1,5 @@
 using oculusit.sync.core.models;
+using oculusit.sync.keka.modules;
 
 namespace oculusit.sync.orchestration;
 
@@ -14,6 +15,7 @@ public interface IProjectOrchestrationService
         SyncState companySyncState,
         SyncState? projectStatusSyncState,
         IReadOnlyList<TimeEntryEmployeeDedupeState> allEmployeesState,
+        KekaEmployee? defaultProjectManager,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -29,6 +31,7 @@ public interface IProjectOrchestrationService
         SyncState? projectStatusSyncState,
         IReadOnlyList<TimeEntryEmployeeDedupeState> allEmployeesState,
         IReadOnlyList<string> retryProjectIds,
+        KekaEmployee? defaultProjectManager,
         CancellationToken cancellationToken = default);
 }
 

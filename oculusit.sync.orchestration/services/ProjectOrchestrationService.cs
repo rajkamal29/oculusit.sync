@@ -38,6 +38,7 @@ public sealed class ProjectOrchestrationService(
         SyncState companySyncState,
         SyncState? projectStatusSyncState,
         IReadOnlyList<TimeEntryEmployeeDedupeState> allEmployeesState,
+        KekaEmployee? defaultProjectManager,
         CancellationToken cancellationToken = default)
     {
         var projects = await connectWiseProjectService.GetAllProjectsAsync(cancellationToken);
@@ -107,10 +108,11 @@ public sealed class ProjectOrchestrationService(
                 }
                 else
                 {
-                    logger.LogWarning(
+                    logger.LogInformation(
                         "TimeEntries#{MemberId} not found in DB. " +
                         "Project manager member exists in ConnectWise but has no employee checkpoint record.",
                         project.Manager?.Id);
+                    kekaEmployee = defaultProjectManager;
                 }
 
                 if (!kekaProjectsByCode.TryGetValue(project.Id.ToString(), out var existing))
@@ -210,6 +212,7 @@ public sealed class ProjectOrchestrationService(
         SyncState? projectStatusSyncState,
         IReadOnlyList<TimeEntryEmployeeDedupeState> allEmployeesState,
         IReadOnlyList<string> retryProjectIds,
+        KekaEmployee? defaultProjectManager,
         CancellationToken cancellationToken = default)
     {
         var since = projectSyncState.LastUpdatedAt!.Value;
@@ -292,10 +295,11 @@ public sealed class ProjectOrchestrationService(
                 }
                 else
                 {
-                    logger.LogWarning(
+                    logger.LogInformation(
                         "TimeEntries#{MemberId} not found in DB. " +
                         "Project manager member exists in ConnectWise but has no employee checkpoint record.",
                         project.Manager?.Id);
+                    kekaEmployee = defaultProjectManager;
                 }
 
                 var projectIdStr = project.Id.ToString();
