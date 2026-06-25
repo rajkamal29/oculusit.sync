@@ -1,6 +1,7 @@
 using oculusit.sync.connectwise.services;
 using oculusit.sync.core.interfaces;
 using oculusit.sync.core.models;
+using oculusit.sync.keka.services;
 using oculusit.sync.orchestration;
 using oculusit.sync.orchestration.services;
 
@@ -15,6 +16,7 @@ public sealed partial class Worker(
     IConnectWiseMemberService connectWiseMemberService,
     IConnectWiseTimeEntryService connectWiseTimeEntryService,
     IConnectWiseTimesheetService connectWiseTimesheetService,
+    IKekaEmployeeService kekaEmployeeService,
     ITimeEntryOrchestrationService timeEntryOrchestrationService,
     ISyncStateService syncStateService) : BackgroundService
 {
@@ -27,14 +29,15 @@ public sealed partial class Worker(
             var syncStartedAt = DateTime.UtcNow;
 
             await syncStateService.EnsureDefaultProjectAsync(stoppingToken);
+            var defaultProjectManager = await kekaEmployeeService.GetDefaultProjectManagerEmployeeAsync(stoppingToken);
             await syncStateService.EnsureBillingTypeAsync(stoppingToken);
             await SyncProjectStatusAsync(syncStartedAt, stoppingToken);
             await SyncTimeEntryEmployeesAsync(stoppingToken);
 
             var retryCompanyIds = await GetRetryCompanyIdsFromSyncStateAsync(stoppingToken);
-            await SyncCompaniesAsync(syncStartedAt, retryCompanyIds, stoppingToken);
+            await SyncCompaniesAsync(syncStartedAt, retryCompanyIds, defaultProjectManager, stoppingToken);
             var retryProjectIds = await GetRetryProjectIdsFromSyncStateAsync(stoppingToken);
-            await SyncProjectsAsync(syncStartedAt, retryProjectIds, stoppingToken);
+            await SyncProjectsAsync(syncStartedAt, retryProjectIds, defaultProjectManager, stoppingToken);
             var retryTimeSheetIds = await GetRetryTimeSheetIdsFromSyncStateAsync(stoppingToken);
             await SyncTimeSheetAsync(retryTimeSheetIds, stoppingToken);
 

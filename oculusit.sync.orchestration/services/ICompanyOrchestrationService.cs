@@ -1,4 +1,5 @@
 using oculusit.sync.core.models;
+using oculusit.sync.keka.modules;
 
 namespace oculusit.sync.orchestration;
 
@@ -8,7 +9,7 @@ public interface ICompanyOrchestrationService
     /// Full sync — fetches all ConnectWise companies and creates or updates Keka clients.
     /// Returns all synced company-to-client mappings and any failures.
     /// </summary>
-    Task<CompanySyncResult> SyncCompaniesToKekaAsync(DefaultProjectEntry? defaultProject, CancellationToken cancellationToken = default);
+    Task<CompanySyncResult> SyncCompaniesToKekaAsync(KekaEmployee? defaultProjectManager, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Incremental sync — fetches companies updated since <paramref name="syncState"/>.LastUpdatedAt
@@ -17,7 +18,7 @@ public interface ICompanyOrchestrationService
     /// </summary>
     Task<CompanySyncResult> SyncCompaniesIncrementalAsync(
         SyncState syncState,
-        DefaultProjectEntry? defaultProject,
+        KekaEmployee? defaultProjectManager,
         IReadOnlyList<string> retryCompanyIds,
         CancellationToken cancellationToken = default);
 }

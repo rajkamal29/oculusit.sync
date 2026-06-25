@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using oculusit.sync.core.interfaces;
+using oculusit.sync.core.models;
 using oculusit.sync.keka.configurations;
 using oculusit.sync.keka.modules;
 using System.Net;
@@ -13,7 +15,8 @@ public sealed class KekaEmployeeService(
     IHttpClientFactory httpClientFactory,
     IOptions<KekaConfiguration> config,
     IKekaTokenService tokenService,
-    ILogger<KekaEmployeeService> logger) : IKekaEmployeeService
+    ILogger<KekaEmployeeService> logger,
+    ISyncStateService syncStateService) : IKekaEmployeeService
 {
     private readonly HttpClient _httpClient = httpClientFactory.CreateClient();
     private readonly KekaConfiguration _config = config.Value;
@@ -99,5 +102,29 @@ public sealed class KekaEmployeeService(
 
         _logger.LogInformation("Successfully searched Keka employee by email {Email}.", email);
         return envelope.Data;
+    }
+
+    public async Task<KekaEmployee?> GetDefaultProjectManagerEmployeeAsync(CancellationToken cancellationToken = default)
+    {
+        var defaultProjectSyncState = await syncStateService.GetAsync(SyncTypes.DefaultProject, cancellationToken);
+
+        if (defaultProjectSyncState is null)
+        {
+            _logger.LogWarning("Default Project syncType not found in database");
+            return null;
+        }
+
+        var email = defaultProjectSyncState.DefaultProject?.ProjectManager.Email ?? string.Empty;
+
+        var defaultProjectManagerDetails = await SearchEmployeeByEmailAsync(email, cancellationToken);
+
+        if (defaultProjectManagerDetails is null)
+        {
+            _logger.LogWarning("Keka search default project manager employee by email {Email} returned no employee data.", email);
+            return null;
+        }
+
+        _logger.LogInformation("Successfully searched Keka default project manager employee by email {Email}.", email);
+        return defaultProjectManagerDetails;
     }
 }

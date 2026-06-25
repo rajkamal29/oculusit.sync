@@ -1,4 +1,5 @@
 using oculusit.sync.core.models;
+using oculusit.sync.keka.modules;
 
 namespace oculusit.sync;
 
@@ -45,6 +46,7 @@ public sealed partial class Worker
     private async Task SyncProjectsAsync(
         DateTime syncStartedAt,
         IReadOnlyList<string> retryProjectIds,
+        KekaEmployee? defaultProjectManager,
         CancellationToken stoppingToken)
     {
         // Company sync state is required to resolve Keka client IDs from ConnectWise company IDs.
@@ -65,7 +67,7 @@ public sealed partial class Worker
         {
             logger.LogInformation("No previous project sync state found. Running full project sync.");
 
-            var result        = await projectOrchestration.SyncProjectsAsync(companySyncState, projectStatusSyncState, allEmployeesState, stoppingToken);
+            var result        = await projectOrchestration.SyncProjectsAsync(companySyncState, projectStatusSyncState, allEmployeesState, defaultProjectManager, stoppingToken);
             var lastUpdatedAt  = result.LastRecordUpdatedAt ?? syncStartedAt;
 
             await syncStateService.UpsertProjectsAsync(SyncTypes.Project, result.SyncedEntries, lastUpdatedAt, stoppingToken);
@@ -90,7 +92,7 @@ public sealed partial class Worker
         {
             logger.LogInformation("Incremental project sync. Last sync was at {LastUpdatedAt}.", projectSyncState.LastUpdatedAt);
 
-            var result        = await projectOrchestration.SyncProjectsIncrementalAsync(projectSyncState, companySyncState, projectStatusSyncState, allEmployeesState, retryProjectIds, stoppingToken);
+            var result        = await projectOrchestration.SyncProjectsIncrementalAsync(projectSyncState, companySyncState, projectStatusSyncState, allEmployeesState, retryProjectIds, defaultProjectManager, stoppingToken);
             var lastUpdatedAt  = result.LastRecordUpdatedAt ?? syncStartedAt;
 
             await syncStateService.UpsertProjectsAsync(SyncTypes.Project, result.SyncedEntries, lastUpdatedAt, stoppingToken);

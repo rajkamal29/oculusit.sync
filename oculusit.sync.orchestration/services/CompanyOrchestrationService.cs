@@ -15,13 +15,10 @@ public sealed class CompanyOrchestrationService(
     IKekaClientService kekaClientService,
     IKekaCurrencyService kekaCurrencyService,
     IKekaProjectService kekaProjectService,
-    IKekaEmployeeService kekaEmployeeService,
     ISyncStateService syncStateService,
     ILogger<CompanyOrchestrationService> logger) : ICompanyOrchestrationService
 {
-    private string? defaultProjectManagerEmployeeIdCache = string.Empty;
-
-    public async Task<CompanySyncResult> SyncCompaniesToKekaAsync(DefaultProjectEntry? defaultProject, CancellationToken cancellationToken = default)
+    public async Task<CompanySyncResult> SyncCompaniesToKekaAsync(KekaEmployee? defaultProjectManager, CancellationToken cancellationToken = default)
     {
         var companies = await connectWiseService.GetAllCompaniesAsync(cancellationToken);
         logger.LogInformation("Fetched {Count} companies from ConnectWise. Starting Keka sync.", companies.Count);
@@ -61,14 +58,14 @@ public sealed class CompanyOrchestrationService(
         return await ProcessCompaniesAsync(
             mappedCompanies,
             kekaClientIdByCompanyId,
-            defaultProject,
+            defaultProjectManager,
             syncLabel: "Full", 
             cancellationToken: cancellationToken);
     }
 
     public async Task<CompanySyncResult> SyncCompaniesIncrementalAsync(
         SyncState syncState,
-        DefaultProjectEntry? defaultProject,
+        KekaEmployee? defaultProjectManager,
         IReadOnlyList<string> retryCompanyIds,
         CancellationToken cancellationToken = default)
     {
@@ -108,7 +105,7 @@ public sealed class CompanyOrchestrationService(
         return await ProcessCompaniesAsync(
             mergedCompanies,
             kekaIdByCompanyId,
-            defaultProject,
+            defaultProjectManager,
             syncLabel: "Incremental",
             cancellationToken: cancellationToken);
     }
@@ -129,7 +126,7 @@ public sealed class CompanyOrchestrationService(
     private async Task<CompanySyncResult> ProcessCompaniesAsync(
         IReadOnlyList<ConnectWiseCompany> companies,
         IReadOnlyDictionary<string, string> kekaClientIdByCompanyId,
-        DefaultProjectEntry? defaultProject,
+        KekaEmployee? defaultProjectManager,
         string syncLabel,
         CancellationToken cancellationToken)
     {
@@ -156,16 +153,7 @@ public sealed class CompanyOrchestrationService(
                 var request = KekaClientMapper.MapToKekaClientRequest(company, usdCurrencyId);
                 var companyDateEntered = company.DateEntered!.Value;
 
-                string? kekaEmployeeId = null;
-
-                if (defaultProject?.ProjectManager is not null)
-                {
-                    kekaEmployeeId = await GetKekaEmployeeAsync(defaultProject.ProjectManager.Email, cancellationToken);
-                }
-                else
-                {
-                    logger.LogWarning("Default Project manager doesnot exists in database.");
-                }
+                string? kekaEmployeeId = defaultProjectManager?.Id;
 
                 if (!kekaClientIdByCompanyId.TryGetValue(companyId, out var kekaClientId))
                 {
@@ -386,16 +374,5 @@ public sealed class CompanyOrchestrationService(
                 "Created default task '{TaskName}' ({TaskId}) under project {ProjectId}.",
                 taskName, taskId, kekaProjectId);
         }
-    }
-
-    private async Task<string?> GetKekaEmployeeAsync(string email, CancellationToken cancellationToken)
-    {
-        if (!string.IsNullOrWhiteSpace(defaultProjectManagerEmployeeIdCache))
-            return defaultProjectManagerEmployeeIdCache;
-
-        var employee = await kekaEmployeeService.SearchEmployeeByEmailAsync(email, cancellationToken);
-
-        defaultProjectManagerEmployeeIdCache = employee?.Id;
-        return defaultProjectManagerEmployeeIdCache;
     }
 }
