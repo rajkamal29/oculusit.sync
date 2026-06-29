@@ -119,13 +119,13 @@ public sealed class ProjectOrchestrationService(
                 if (kekaEmployee is null)
                 {
                     logger.LogWarning(
-                        "Full Sync: Keka Employee {Member} not found to update project manager. The project will not have a project manager assigned for ConnectWise project {ProjectId} - {ProjectName}.",
+                        "Full Sync: Keka Employee {Member} not found or some error occurred while searching the employee to update project manager. The project will not have a project manager assigned for ConnectWise project {ProjectId} - {ProjectName}.",
                         project.Manager?.Name, project.Id, project.Name);
                     retryEntries.Add(new RetryProjectEntry
                     {
                         Id = project.Id.ToString(),
                         Name = project.Name ?? string.Empty,
-                        ErrorMessage = $"Full Sync: Keka Employee {project.Manager?.Name} not found to update project manager. The project will not have a project manager assigned for ConnectWise project {project.Id} - {project.Name}."
+                        ErrorMessage = $"Full Sync: Keka Employee {project.Manager?.Name} not found or some error occurred while searching the employee to update project manager. The project will not have a project manager assigned for ConnectWise project {project.Id} - {project.Name}."
                     });
                 }
 
@@ -332,13 +332,13 @@ public sealed class ProjectOrchestrationService(
                 if (kekaEmployee is null)
                 {
                     logger.LogWarning(
-                        "Incremental Sync: Keka Employee {Member} not found to update project manager. The project will not have a project manager assigned for ConnectWise project {ProjectId} - {ProjectName}.",
+                        "Incremental Sync: Keka Employee {Member} not found or some error occurred while searching the employee to update project manager. The project will not have a project manager assigned for ConnectWise project {ProjectId} - {ProjectName}.",
                         project.Manager?.Name, project.Id, project.Name);
                     retryEntries.Add(new RetryProjectEntry
                     {
                         Id = project.Id.ToString(),
                         Name = project.Name ?? string.Empty,
-                        ErrorMessage = $"Incremental Sync: Keka Employee {project.Manager?.Name} not found to update project manager. The project will not have a project manager assigned for ConnectWise project {project.Id} - {project.Name}."
+                        ErrorMessage = $"Incremental Sync: Keka Employee {project.Manager?.Name} not found or some error occurred while searching the employee to update project manager. The project will not have a project manager assigned for ConnectWise project {project.Id} - {project.Name}."
                     });
                 }
 

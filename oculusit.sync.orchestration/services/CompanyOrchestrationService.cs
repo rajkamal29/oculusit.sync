@@ -155,18 +155,6 @@ public sealed class CompanyOrchestrationService(
                 var companyDateEntered = company.DateEntered!.Value;
 
                 string? kekaEmployeeId = defaultProjectManager?.Id;
-                if (kekaEmployeeId is null)
-                {
-                    logger.LogWarning(
-                        "{SyncLabel}: Default project manager not found in Keka. Default project will not have a project manager assigned for ConnectWise company {CompanyId} - {CompanyName}.",
-                        syncLabel, company.Id, company.Name);
-                    retryEntries.Add(new RetryCompanyEntry
-                    {
-                        Id = companyId,
-                        Name = company.Name ?? string.Empty,
-                        ErrorMessage = $"{syncLabel}: Default project manager not found in Keka. Default project will not have a project manager assigned for ConnectWise company {company.Id} - {company.Name}."
-                    });
-                }
 
                 if (!kekaClientIdByCompanyId.TryGetValue(companyId, out var kekaClientId))
                 {
@@ -307,7 +295,7 @@ public sealed class CompanyOrchestrationService(
                 StartDate  = startDate,
                 EndDate    = null,
                 IsBillable = true,
-                BillingType = int.Parse(billingTypeSyncState?.BillingType ?? "0"),
+                BillingType = int.Parse(billingTypeSyncState?.BillingType ?? "1"),
                 ProjectManager = new List<string> { kekaEmployeeId ?? string.Empty }
             };
 
