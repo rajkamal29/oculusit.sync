@@ -8,6 +8,7 @@ using oculusit.sync.keka.services;
 using oculusit.sync.orchestration.mappings;
 using Polly.Timeout;
 using System.Globalization;
+using System.Net;
 
 namespace oculusit.sync.orchestration.services;
 
@@ -115,6 +116,19 @@ public sealed class ProjectOrchestrationService(
                     kekaEmployee = defaultProjectManager;
                 }
 
+                if (kekaEmployee is null)
+                {
+                    logger.LogWarning(
+                        "Full Sync: Keka Employee {Member} not found to update project manager. The project will not have a project manager assigned for ConnectWise project {ProjectId} - {ProjectName}.",
+                        project.Manager?.Name, project.Id, project.Name);
+                    retryEntries.Add(new RetryProjectEntry
+                    {
+                        Id = project.Id.ToString(),
+                        Name = project.Name ?? string.Empty,
+                        ErrorMessage = $"Full Sync: Keka Employee {project.Manager?.Name} not found to update project manager. The project will not have a project manager assigned for ConnectWise project {project.Id} - {project.Name}."
+                    });
+                }
+
                 if (!kekaProjectsByCode.TryGetValue(project.Id.ToString(), out var existing))
                 {
                     // New project — create in Keka then provision all 6 standard tasks.
@@ -174,6 +188,19 @@ public sealed class ProjectOrchestrationService(
                     Id           = project.Id.ToString(),
                     Name         = project.Name ?? string.Empty,
                     ErrorMessage = tex.Message
+                });
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                logger.LogWarning(ex,
+                    "Internal Server Error syncing ConnectWise project {ProjectId} - {ProjectName} to Keka.",
+                    project.Id, project.Name);
+                failed++;
+                retryEntries.Add(new RetryProjectEntry
+                {
+                    Id = project.Id.ToString(),
+                    Name = project.Name ?? string.Empty,
+                    ErrorMessage = ex.Message
                 });
             }
             catch (Exception ex)
@@ -302,6 +329,19 @@ public sealed class ProjectOrchestrationService(
                     kekaEmployee = defaultProjectManager;
                 }
 
+                if (kekaEmployee is null)
+                {
+                    logger.LogWarning(
+                        "Incremental Sync: Keka Employee {Member} not found to update project manager. The project will not have a project manager assigned for ConnectWise project {ProjectId} - {ProjectName}.",
+                        project.Manager?.Name, project.Id, project.Name);
+                    retryEntries.Add(new RetryProjectEntry
+                    {
+                        Id = project.Id.ToString(),
+                        Name = project.Name ?? string.Empty,
+                        ErrorMessage = $"Incremental Sync: Keka Employee {project.Manager?.Name} not found to update project manager. The project will not have a project manager assigned for ConnectWise project {project.Id} - {project.Name}."
+                    });
+                }
+
                 var projectIdStr = project.Id.ToString();
 
                 if (knownProjects.TryGetValue(projectIdStr, out var existingKekaProjectId)
@@ -359,6 +399,19 @@ public sealed class ProjectOrchestrationService(
                     Id           = project.Id.ToString(),
                     Name         = project.Name ?? string.Empty,
                     ErrorMessage = tex.Message
+                });
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                logger.LogWarning(ex,
+                    "Incremental: Internal Server Error syncing ConnectWise project {ProjectId} - {ProjectName} to Keka.",
+                    project.Id, project.Name);
+                failed++;
+                retryEntries.Add(new RetryProjectEntry
+                {
+                    Id = project.Id.ToString(),
+                    Name = project.Name ?? string.Empty,
+                    ErrorMessage = ex.Message
                 });
             }
             catch (Exception ex)

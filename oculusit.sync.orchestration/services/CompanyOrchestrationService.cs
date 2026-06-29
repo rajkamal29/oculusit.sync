@@ -7,6 +7,7 @@ using oculusit.sync.keka.modules;
 using oculusit.sync.keka.services;
 using oculusit.sync.orchestration.mappings;
 using Polly.Timeout;
+using System.Net;
 
 namespace oculusit.sync.orchestration.services;
 
@@ -154,6 +155,18 @@ public sealed class CompanyOrchestrationService(
                 var companyDateEntered = company.DateEntered!.Value;
 
                 string? kekaEmployeeId = defaultProjectManager?.Id;
+                if (kekaEmployeeId is null)
+                {
+                    logger.LogWarning(
+                        "{SyncLabel}: Default project manager not found in Keka. Default project will not have a project manager assigned for ConnectWise company {CompanyId} - {CompanyName}.",
+                        syncLabel, company.Id, company.Name);
+                    retryEntries.Add(new RetryCompanyEntry
+                    {
+                        Id = companyId,
+                        Name = company.Name ?? string.Empty,
+                        ErrorMessage = $"{syncLabel}: Default project manager not found in Keka. Default project will not have a project manager assigned for ConnectWise company {company.Id} - {company.Name}."
+                    });
+                }
 
                 if (!kekaClientIdByCompanyId.TryGetValue(companyId, out var kekaClientId))
                 {
@@ -162,36 +175,6 @@ public sealed class CompanyOrchestrationService(
 
                     logger.LogInformation("{SyncLabel}: Created Keka client for ConnectWise company {CompanyId} - {CompanyName}",
                         syncLabel, company.Id, company.Name);
-
-                    try
-                    {
-                        await CreateDefaultProjectAsync(companyId, kekaClientId, companyDateEntered, kekaEmployeeId, cancellationToken);
-                    }
-                    catch (TimeoutRejectedException tex)
-                    {
-                        logger.LogWarning(tex,
-                            "{SyncLabel}: Timeout creating default project for ConnectWise company {CompanyId} and Keka client {ClientId}.",
-                            syncLabel, company.Id, kekaClientId);
-                        retryEntries.Add(new RetryCompanyEntry
-                        {
-                            Id = companyId,
-                            Name = company.Name ?? string.Empty,
-                            ErrorMessage = tex.Message
-                        });
-                    }
-                    catch(Exception ex)
-                    {
-                        logger.LogError(ex,
-                            "{SyncLabel}: Error creating default project for ConnectWise company {CompanyId} and Keka client {ClientId}.",
-                            syncLabel, company.Id, kekaClientId);
-                    }
-
-                    syncedEntries.Add(new SyncedCompanyEntry
-                    {
-                        Id = companyId,
-                        ClientId = kekaClientId,
-                        DateEntered = companyDateEntered
-                    });
                 }
                 else
                 {
@@ -201,37 +184,31 @@ public sealed class CompanyOrchestrationService(
 
                     logger.LogInformation("{SyncLabel}: Updated Keka client {KekaClientId} for ConnectWise company {CompanyId} - {CompanyName}",
                         syncLabel, kekaClientId, company.Id, company.Name);
+                }
 
-                    try
-                    {
-                        await CreateDefaultProjectAsync(companyId, kekaClientId, companyDateEntered, kekaEmployeeId, cancellationToken);
-                    }
-                    catch (TimeoutRejectedException tex)
-                    {
-                        logger.LogWarning(tex,
-                            "{SyncLabel}: Timeout creating default project for ConnectWise company {CompanyId} and Keka client {ClientId}.",
-                            syncLabel, company.Id, kekaClientId);
-                        retryEntries.Add(new RetryCompanyEntry
-                        {
-                            Id = companyId,
-                            Name = company.Name ?? string.Empty,
-                            ErrorMessage = tex.Message
-                        });
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex,
-                            "{SyncLabel}: Error creating default project for ConnectWise company {CompanyId} and Keka client {ClientId}.",
-                            syncLabel, company.Id, kekaClientId);
-                    }
-
-                    syncedEntries.Add(new SyncedCompanyEntry
+                try
+                {
+                    await CreateDefaultProjectAsync(companyId, kekaClientId, companyDateEntered, kekaEmployeeId, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex,
+                        "{SyncLabel}: Error creating default project for ConnectWise company {CompanyId} and Keka client {ClientId}.",
+                        syncLabel, company.Id, kekaClientId);
+                    retryEntries.Add(new RetryCompanyEntry
                     {
                         Id = companyId,
-                        ClientId = kekaClientId,
-                        DateEntered = companyDateEntered
+                        Name = company.Name ?? string.Empty,
+                        ErrorMessage = ex.Message
                     });
                 }
+
+                syncedEntries.Add(new SyncedCompanyEntry
+                {
+                    Id = companyId,
+                    ClientId = kekaClientId,
+                    DateEntered = companyDateEntered
+                });
             }
             catch (TimeoutRejectedException tex)
             {
@@ -245,6 +222,20 @@ public sealed class CompanyOrchestrationService(
                     Id = company.Id.ToString(),
                     Name = company.Name ?? string.Empty,
                     ErrorMessage = tex.Message
+                });
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                failed++;
+                logger.LogWarning(ex,
+                    "{SyncLabel}: Internal Server Error syncing ConnectWise company {CompanyId} - {CompanyName} to Keka.",
+                    syncLabel, company.Id, company.Name);
+
+                retryEntries.Add(new RetryCompanyEntry
+                {
+                    Id = company.Id.ToString(),
+                    Name = company.Name ?? string.Empty,
+                    ErrorMessage = ex.Message
                 });
             }
             catch (Exception ex)

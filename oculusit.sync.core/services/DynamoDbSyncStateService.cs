@@ -240,8 +240,6 @@ public sealed class DynamoDbSyncStateService(
             }
         }
 
-        var retryTimeSheets = await GetRetryTimeSheetsAsync(cancellationToken);
-
         return new SyncState
         {
             SyncType              = syncType,
@@ -254,7 +252,6 @@ public sealed class DynamoDbSyncStateService(
             InitialProjects       = initialProjects,
             FailedProjects        = failedProjects,
             FailedCompanies       = failedCompanies,
-            RetryTimeSheets       = retryTimeSheets,
             ProjectStatuses       = ReadProjectStatuses(response.Item)
         };
     }
