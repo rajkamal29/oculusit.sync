@@ -56,10 +56,4 @@ public interface IKekaProjectService
     /// Gets allocations for a Keka PSA project by Keka project ID.
     /// </summary>
     Task<IReadOnlyList<KekaProjectAllocation>> GetProjectAllocationsAsync(string projectId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Returns all Keka PSA billing roles.
-    /// Used to map an employee department name to its billing role ID.
-    /// </summary>
-    Task<IReadOnlyList<KekaBillingRole>> GetAllBillingRolesAsync(CancellationToken cancellationToken = default);
 }
