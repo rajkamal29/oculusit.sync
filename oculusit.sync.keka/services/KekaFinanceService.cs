@@ -13,11 +13,11 @@ public sealed class KekaFinanceService(
     IHttpClientFactory httpClientFactory,
     IOptions<KekaConfiguration> config,
     IKekaTokenService tokenService,
-    ILogger<KekaCurrencyService> logger) : IKekaFinanceService
+    ILogger<KekaFinanceService> logger) : IKekaFinanceService
 {
-    private readonly HttpClient _httpClient = httpClientFactory.CreateClient(nameof(KekaCurrencyService));
+    private readonly HttpClient _httpClient = httpClientFactory.CreateClient(nameof(KekaFinanceService));
     private readonly KekaConfiguration _config = config.Value;
-    private readonly ILogger<KekaCurrencyService> _logger = logger;
+    private readonly ILogger<KekaFinanceService> _logger = logger;
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
