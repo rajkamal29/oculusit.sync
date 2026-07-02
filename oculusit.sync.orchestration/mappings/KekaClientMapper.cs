@@ -68,7 +68,7 @@ public static class KekaClientMapper
         {
             Name        = company.Name,
             Description = NullIfEmpty(company.Identifier),
-            Code        = company.Id,
+            Code        = company.Id.ToString(),
             Phone       = ValidatePhone(company.PhoneNumber),
             Website     = ValidateWebsite(company.Website),
             Email       = string.IsNullOrWhiteSpace(company.InvoiceCCEmailAddress)

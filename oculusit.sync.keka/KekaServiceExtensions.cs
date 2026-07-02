@@ -61,6 +61,7 @@ public static class KekaServiceExtensions
         services.AddSingleton<IKekaTimesheetEntryService, KekaTimesheetEntryService>();
         services.AddSingleton<IKekaEmployeeService, KekaEmployeeService>();
         services.AddSingleton<IKekaFinanceService, KekaFinanceService>();
+        services.AddSingleton<IOculusITKekaClientAndProjectService, OculusITKekaClientAndProjectService>();
 
         return services;
     }

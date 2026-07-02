@@ -12,7 +12,7 @@ public sealed class KekaClientRequest
     public string? Description { get; init; }
 
     [JsonPropertyName("code")]
-    public int Code { get; init; }
+    public string Code { get; init; } = string.Empty;
 
     [JsonPropertyName("phone")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

@@ -94,6 +94,29 @@ public sealed class SyncedCompanyEntry
 }
 
 /// <summary>Records a synced ConnectWise project.</summary>
+public sealed class InitialCompanyAndProjectEntry
+{
+    /// <summary>ConnectWise company ID.</summary>
+    public string CompanyId { get; init; } = string.Empty;
+
+    /// <summary>ConnectWise company name.</summary>
+    public string CompanyName { get; init; } = string.Empty;
+
+    /// <summary>Keka client ID.</summary>
+    public string KekaClientId { get; init; } = string.Empty;
+
+    /// <summary>Keka client code.</summary>
+    public string KekaClientCode { get; init; } = string.Empty;
+
+    /// <summary>Keka client name.</summary>
+    public string KekaClientName { get; init; } = string.Empty;
+
+    /// <summary>Initial projects for the company.</summary>
+    public IReadOnlyList<InitialProjectEntry> InitialProjects { get; init; } = [];
+
+}
+
+/// <summary>Records a synced ConnectWise project.</summary>
 public sealed class InitialCompanyEntry
 {
     /// <summary>ConnectWise company ID.</summary>
