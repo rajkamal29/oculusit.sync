@@ -129,7 +129,7 @@ public sealed class TimeEntryOrchestrationService(
         }
 
         // Resolve Keka employee once for the entire batch
-        var kekaEmployee = await kekaEmployeeService.SearchEmployeeByEmailAsync("swastidipa.m@tezo.com", cancellationToken);
+        var kekaEmployee = await kekaEmployeeService.SearchEmployeeByEmailAsync(employeeEmail.Trim(), cancellationToken);
         if (kekaEmployee is null || string.IsNullOrWhiteSpace(kekaEmployee.Id))
         {
             logger.LogWarning(
