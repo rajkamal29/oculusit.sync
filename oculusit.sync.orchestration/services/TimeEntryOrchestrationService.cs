@@ -12,7 +12,7 @@ public sealed class TimeEntryOrchestrationService(
     IKekaProjectService kekaProjectService,
     IKekaEmployeeService kekaEmployeeService,
     IKekaTimesheetEntryService kekaTimesheetEntryService,
-    IKekaClientService kekaClientService,
+    IKekaFinanceService kekaFinanceService,
     ILogger<TimeEntryOrchestrationService> logger) : ITimeEntryOrchestrationService
 {
     private const string DefaultProjectSuffix = "-CWDP";
@@ -287,15 +287,43 @@ public sealed class TimeEntryOrchestrationService(
     {
         var allocations = await kekaProjectService.GetProjectAllocationsAsync(kekaProject.Id, cancellationToken);
 
-        var alreadyAllocated = allocations.Any(a =>
+        var existingAllocation = allocations.FirstOrDefault(a =>
             string.Equals(a.Employee?.Id, kekaEmployee.Id, StringComparison.OrdinalIgnoreCase));
 
-        if (alreadyAllocated)
+        if (existingAllocation is not null)
         {
             logger.LogDebug(
                 "Employee {EmployeeEmail} already has an allocation on Keka project {ProjectName}. Skipping creation.",
                 kekaEmployee.Email,
                 kekaProject.Name);
+
+            var projectEndDate = kekaProject.EndDate?.Date;
+            if (projectEndDate.HasValue && existingAllocation.EndDate?.Date != projectEndDate)
+            {
+                try
+                {
+                    await kekaProjectService.UpdateProjectAllocationAsync(
+                        kekaProject.Id,
+                        existingAllocation.Id,
+                        new KekaUpdateProjectAllocationRequest { EndDate = projectEndDate },
+                        cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(
+                        ex,
+                        "Failed to update end date of allocation {AllocationId} on Keka project {ProjectName}. Continuing with existing allocation.",
+                        existingAllocation.Id,
+                        kekaProject.Name);
+                }
+
+                logger.LogInformation(
+                    "Updated end date of allocation {AllocationId} on Keka project {ProjectName} to {EndDate}.",
+                    existingAllocation.Id,
+                    kekaProject.Name,
+                    projectEndDate.Value);
+            }
+
             return;
         }
 
@@ -309,10 +337,7 @@ public sealed class TimeEntryOrchestrationService(
 
         if (!string.IsNullOrWhiteSpace(departmentName))
         {
-            var billingRoles = await kekaClientService.GetBillingRolesAsync(kekaProject.ClientId, cancellationToken);
-            billingRoleId = billingRoles
-                .FirstOrDefault(r => string.Equals(r.Name, departmentName, StringComparison.OrdinalIgnoreCase))
-                ?.Id;
+            billingRoleId = await kekaFinanceService.GetBillingRoleIdAsync(departmentName, cancellationToken);
 
             if (string.IsNullOrWhiteSpace(billingRoleId))
             {
@@ -340,7 +365,7 @@ public sealed class TimeEntryOrchestrationService(
             AllocationPercentage = 100,
             BillingRoleId = billingRoleId,
             StartDate = startDate,
-            EndDate = null,
+            EndDate = kekaProject.EndDate?.Date ?? null,
             BillingType = kekaProject.IsBillable
                 ? KekaProjectAllocationBillingType.Billable
                 : KekaProjectAllocationBillingType.NonBillable
@@ -409,7 +434,7 @@ public sealed class TimeEntryOrchestrationService(
 
         var fallbackStartDate = (NormalizeUtc(timeStart) ?? DateTime.UtcNow).Date;
         var startDate = kekaProject.StartDate?.Date ?? fallbackStartDate;
-        var endDate = kekaProject.EndDate?.Date ?? startDate.AddYears(10);
+        var endDate = kekaProject.EndDate?.Date ?? null;
 
         var createRequest = new KekaTaskRequest
         {

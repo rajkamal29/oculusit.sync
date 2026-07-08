@@ -48,7 +48,7 @@ public sealed class KekaTimesheetEntryService(
     {
         await SetAuthHeaderAsync(cancellationToken);
 
-        var uri = BuildUri($"/psa/employees/{employeeId}/timeentries");
+        var uri = BuildUri($"/psa/employees/{employeeId}/timeentries?autoSubmit=false");
         _logger.LogDebug("Creating Keka timesheet entry for employee {EmployeeId}.",
             employeeId);
 

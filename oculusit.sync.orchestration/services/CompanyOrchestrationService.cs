@@ -321,7 +321,6 @@ public sealed class CompanyOrchestrationService(
         }
 
         var taskStartDate = startDate.Date;
-        var taskEndDate = DateTime.MaxValue;
 
         var existingTasks = await kekaProjectService.GetTasksByProjectAsync(kekaProjectId, cancellationToken);
         var existingTaskNames = existingTasks
@@ -344,7 +343,7 @@ public sealed class CompanyOrchestrationService(
                 ProjectId      = kekaProjectId,
                 Name           = taskName,
                 StartDate      = taskStartDate,
-                EndDate        = taskEndDate,
+                EndDate        = null,
                 TaskBillingType = billingType
             };
 

@@ -75,7 +75,7 @@ public sealed class KekaFinanceService(
 
             if (envelope?.Data is { Count: > 0 })
             {
-                billingRoleId = envelope.Data.FirstOrDefault(d => d.RoleName == departmentName)?.BillingRoleId;
+                billingRoleId = envelope.Data.FirstOrDefault(d => string.Equals(d.RoleName, departmentName, StringComparison.OrdinalIgnoreCase))?.BillingRoleId;
 
                 if (!string.IsNullOrEmpty(billingRoleId))
                 {

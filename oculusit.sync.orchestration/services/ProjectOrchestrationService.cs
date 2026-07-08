@@ -467,7 +467,7 @@ public sealed class ProjectOrchestrationService(
         CancellationToken cancellationToken)
     {
         var taskStartDate = startDate.Date;
-        var taskEndDate = endDate?.Date ?? DateTime.MaxValue;
+        var taskEndDate = endDate?.Date ?? null;
 
         var definitionsByKey = ProjectTaskDefinitions.ToDictionary(t => t.Key, t => (t.Name, t.BillingType));
 

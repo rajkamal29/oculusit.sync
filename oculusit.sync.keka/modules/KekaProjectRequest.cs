@@ -74,7 +74,7 @@ public sealed class KekaTaskRequest
     public DateTime StartDate { get; init; }
 
     [JsonPropertyName("endDate")]
-    public DateTime EndDate { get; init; }
+    public DateTime? EndDate { get; init; }
 
     /// <summary>0 = Non-Billable, 1 = Billable.</summary>
     [JsonPropertyName("taskBillingType")]
