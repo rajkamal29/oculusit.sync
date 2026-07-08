@@ -52,6 +52,9 @@ public sealed class ConnectWiseService(
     public Task<IReadOnlyList<ConnectWiseProjectStatus>> GetAllProjectStatusesAsync(CancellationToken cancellationToken = default)
         => _projects.GetAllProjectStatusesAsync(cancellationToken);
 
+    public Task<IReadOnlyList<ConnectWiseProjectTeamMember>> GetProjectMembersAsync(int projectId, CancellationToken cancellationToken = default)
+        => _projects.GetProjectMembersAsync(projectId, cancellationToken);
+
     public Task<IReadOnlyList<ConnectWiseTimeEntry>> GetTimeEntriesForDayAsync(
         DateOnly date,
         IReadOnlyList<int>? memberIds = null,

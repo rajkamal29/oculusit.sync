@@ -25,4 +25,9 @@ public interface IConnectWiseProjectService
     /// Fetches all project statuses from ConnectWise (/project/statuses).
     /// </summary>
     Task<IReadOnlyList<ConnectWiseProjectStatus>> GetAllProjectStatusesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches the team members for the specified project (/project/projects/{projectId}/teamMembers).
+    /// </summary>
+    Task<IReadOnlyList<ConnectWiseProjectTeamMember>> GetProjectMembersAsync(int projectId, CancellationToken cancellationToken = default);
 }

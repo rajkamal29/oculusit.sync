@@ -100,4 +100,29 @@ public sealed class ConnectWiseProjectService(
 
         return results;
     }
+
+    public async Task<IReadOnlyList<ConnectWiseProjectTeamMember>> GetProjectMembersAsync(int projectId, CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation("Fetching team members for ConnectWise project {ProjectId}", projectId);
+
+        var relativeUrl = $"/project/projects/{projectId}/teamMembers";
+
+        using var request = CreateRequest(HttpMethod.Get, relativeUrl);
+        using var response = await HttpClient.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new HttpRequestException($"ConnectWise API error fetching project members for {projectId}: {response.StatusCode} - {error}");
+        }
+
+        var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var members = await System.Text.Json.JsonSerializer.DeserializeAsync<List<ConnectWiseProjectTeamMember>>(stream, JsonOptions, cancellationToken);
+
+        var result = members ?? new List<ConnectWiseProjectTeamMember>();
+
+        logger.LogInformation("Fetched {Count} team members for ConnectWise project {ProjectId}", result.Count, projectId);
+
+        return result;
+    }
 }

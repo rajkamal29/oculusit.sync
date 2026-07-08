@@ -49,7 +49,7 @@ internal sealed class KekaUpdateClientResponse
     public bool Data { get; init; }
 }
 
-internal sealed class KekaDataListResponse<T>
+public sealed class KekaDataListResponse<T>
 {
     [JsonPropertyName("succeeded")]
     public bool Succeeded { get; init; }
@@ -152,7 +152,7 @@ internal sealed class KekaUpdateTaskResponse
 /// <summary>
 /// Wraps the Keka API response for fetching employee by email.
 /// </summary>
-internal sealed class KekaGetEmployeeResponse
+public sealed class KekaGetEmployeeResponse
 {
     [JsonPropertyName("data")]
     public KekaEmployee? Data { get; init; }

@@ -91,3 +91,77 @@ public sealed class KekaGroupInfo
     [JsonPropertyName("groupType")]
     public int? GroupType { get; init; }
 }
+
+public class KekaEmployeeRequest
+{
+    [JsonPropertyName("employeeNumber")]
+    public string? EmployeeNumber { get; set; }
+
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
+    [JsonPropertyName("firstName")]
+    public string? FirstName { get; set; }
+
+    [JsonPropertyName("middleName")]
+    public string? MiddleName { get; set; }
+
+    [JsonPropertyName("lastName")]
+    public string? LastName { get; set; }
+
+    [JsonPropertyName("email")]
+    public string? Email { get; set; }
+
+    [JsonPropertyName("mobileNumber")]
+    public string? MobileNumber { get; set; }
+
+    [JsonPropertyName("gender")]
+    public int? Gender { get; set; }
+
+    [JsonPropertyName("dateOfBirth")]
+    public DateTime? DateOfBirth { get; set; }
+
+    [JsonPropertyName("dateJoined")]
+    public DateTime? DateJoined { get; set; }
+
+    [JsonPropertyName("department")]
+    public string? Department { get; set; }
+
+    [JsonPropertyName("businessUnit")]
+    public string? BusinessUnit { get; set; }
+
+    [JsonPropertyName("jobTitle")]
+    public string? JobTitle { get; set; }
+
+    [JsonPropertyName("secondaryJobTitle")]
+    public string? SecondaryJobTitle { get; set; }
+
+    [JsonPropertyName("location")]
+    public string? Location { get; set; }
+
+    [JsonPropertyName("legalEntity")]
+    public string? LegalEntity { get; set; }
+
+    [JsonPropertyName("nationality")]
+    public string? Nationality { get; set; }
+}
+
+
+/// <summary>
+/// Wraps the Keka API response for employee creation.
+/// data contains the newly created Keka employee ID.
+/// </summary>
+public sealed class KekaCreateEmployeeResponse
+{
+    [JsonPropertyName("succeeded")]
+    public bool Succeeded { get; init; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; init; }
+
+    [JsonPropertyName("errors")]
+    public IReadOnlyList<string> Errors { get; init; } = [];
+
+    [JsonPropertyName("data")]
+    public string? Data { get; init; }
+}

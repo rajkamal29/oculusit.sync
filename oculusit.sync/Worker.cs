@@ -9,6 +9,7 @@ namespace oculusit.sync;
 
 public sealed partial class Worker(
     ILogger<Worker> logger,
+    IHttpClientFactory httpClientFactory,
     IHostApplicationLifetime lifetime,
     ICompanyOrchestrationService companyOrchestration,
     IProjectOrchestrationService projectOrchestration,
@@ -35,6 +36,10 @@ public sealed partial class Worker(
             var syncStartedAt = DateTime.UtcNow;
 
             await SyncCompaniesAndProjectsAsync(syncStartedAt, stoppingToken);
+
+            //await GenerateProjectTeamMembersExcelAsync(stoppingToken);
+
+            //await SyncProdEmployeeToDemo(stoppingToken);
 
             //await syncStateService.EnsureDefaultProjectAsync(stoppingToken);
             //var defaultProjectManager = await kekaEmployeeService.GetDefaultProjectManagerEmployeeAsync(stoppingToken);
