@@ -153,16 +153,6 @@ public sealed partial class Worker
                             "but re-sync to Keka is not yet supported. Please update this timesheet in Keka manually.",
                             timesheet.Id, memberId, year, period);
 
-                        retryTimeSheetEntries.Add(new RetryTimeSheetEntry
-                        {
-                            Id = timesheet.Id.ToString(CultureInfo.InvariantCulture),
-                            MemberId = memberId,
-                            Email = employeeState.Email,
-                            Year = year,
-                            Period = period,
-                            ErrorMessage = "Timesheet has rejection history and cannot be automatically re-synced. Please update this timesheet in Keka manually."
-                        });
-
                         totalSkipped++;
                         continue;
                     }
