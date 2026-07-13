@@ -1,11 +1,13 @@
 using oculusit.sync.core.models;
 using oculusit.sync.keka.modules;
 using OfficeOpenXml;
+using System.Drawing;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace oculusit.sync;
 
@@ -204,6 +206,105 @@ public sealed partial class Worker
             throw;
         }
     }
+    private async Task GenerateClientRateCardExcelAsync(CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Starting client rate card Excel generation.");
+
+        try
+        {
+            // Get all Keka clients
+            var clients = await kekaClientService.GetAllClientsAsync(cancellationToken);
+
+            if (clients.Count == 0)
+            {
+                logger.LogWarning("No clients found. Skipping Excel generation.");
+                return;
+            }
+
+            var billingRoles = new List<string>
+            {
+                "Sales",
+                "Command Center",
+                "Others",
+                "HR",
+                "Corporate IT",
+                "Marketing",
+                "finance",
+                "ESA",
+                "SPS - Strategic Proactive Security",
+                "ITO",
+                "Project Management",
+                "Institutional Research - OEYE",
+                "Customer Success",
+                "Management",
+                "Facilities",
+                "IRE -   Infrastructure Reliability & Engineering"
+            };
+
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+
+            var fileName = $"BillingRoles_{DateTime.UtcNow:yyyyMMdd_HHmmss}.xlsx";
+            var excelFilePath = Path.Combine(
+                Directory.GetParent(Directory.GetCurrentDirectory())!.FullName,
+                fileName);
+
+            using var package = new ExcelPackage();
+
+            var worksheet = package.Workbook.Worksheets.Add("Billing Roles");
+
+            // Headers
+            worksheet.Cells[1, 1].Value = "Client Code";
+            worksheet.Cells[1, 2].Value = "Client Name";
+            worksheet.Cells[1, 3].Value = "Billing Role Name";
+            worksheet.Cells[1, 4].Value = "Rate Category";
+            worksheet.Cells[1, 5].Value = "Description";
+            worksheet.Cells[1, 6].Value = "Bill Rate";
+            worksheet.Cells[1, 7].Value = "Suggested Cost";
+
+            // Header formatting
+            var headerRow = worksheet.Row(1);
+            headerRow.Style.Font.Bold = true;
+            headerRow.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+            headerRow.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.LightGray);
+
+            var row = 2;
+
+            foreach (var client in clients)
+            {
+                foreach (var billingRole in billingRoles)
+                {
+                    worksheet.Cells[row, 1].Value = client.Code;
+                    worksheet.Cells[row, 2].Value = client.Name;
+                    worksheet.Cells[row, 3].Value = billingRole;
+                    worksheet.Cells[row, 4].Value = string.Empty;
+                    worksheet.Cells[row, 5].Value = string.Empty;
+                    worksheet.Cells[row, 6].Value = 0;
+                    worksheet.Cells[row, 7].Value = string.Empty;
+
+                    row++;
+                }
+            }
+
+            worksheet.Cells.AutoFitColumns();
+
+            await package.SaveAsAsync(new FileInfo(excelFilePath), cancellationToken);
+
+            logger.LogInformation(
+                "Billing roles Excel generated successfully at {FilePath} with {RowCount} rows.",
+                excelFilePath,
+                row - 2);
+
+            logger.LogInformation(
+                "Excel file generated successfully at {FilePath} with {RowCount} clients(s).",
+                excelFilePath, clients.Count);
+            logger.LogInformation("Total count: {count}", row);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error generating project team members Excel file.");
+            throw;
+        }
+    }
 
     /// <summary>
     /// Internal class to hold project team member Excel row data.
@@ -330,49 +431,61 @@ public sealed partial class Worker
     {
         var prodEmployees = await GetAllEmployeeAsync(cancellationToken);
         var demoEmployees = await kekaEmployeeService.GetAllEmployeeAsync(cancellationToken);
+        var demoDepartments = await kekaEmployeeService.GetAllDepartmentsAsync(cancellationToken);
         var demoEmployeeEmails = new HashSet<string>(demoEmployees.Select(e => e.Email ?? string.Empty));
         var count = 0;
+        var failed = 0;
+        var skipped = 0;
+        var departmentNotFoundList = new List<KekaEmployee>();
+
         foreach (var prodEmployee in prodEmployees)
         {
-            if (string.IsNullOrWhiteSpace(prodEmployee.Email))
-                continue;
-            if (!demoEmployeeEmails.Contains(prodEmployee.Email))
+            try
             {
-                var request = new KekaEmployeeRequest
+                if (string.IsNullOrWhiteSpace(prodEmployee.Email))
+                    continue;
+                if (!demoEmployeeEmails.Contains(prodEmployee.Email))
                 {
-                    EmployeeNumber = prodEmployee.EmployeeNumber,
-                    DisplayName = prodEmployee.DisplayName,
-                    FirstName = prodEmployee.FirstName,
-                    MiddleName = prodEmployee.MiddleName,
-                    LastName = prodEmployee.LastName,
-                    Email = prodEmployee.Email,
-                    Gender = prodEmployee.Gender,
-                    DateOfBirth = prodEmployee.DateOfBirth,
-                    DateJoined = prodEmployee.JoiningDate,
-                    Department = prodEmployee.Groups
-                        .FirstOrDefault(g => g.GroupType == 2)
-                        ?.Title,
-                    BusinessUnit = prodEmployee.Groups
-                        .FirstOrDefault(g => g.GroupType == 1)
-                        ?.Title,
-                    JobTitle = prodEmployee.JobTitle?.Title,
-                    Location = prodEmployee.Groups
-                        .FirstOrDefault(g => g.GroupType == 3)
-                        ?.Title,
-                    LegalEntity = prodEmployee.Groups
-                        .FirstOrDefault(g => g.GroupType == 9)
-                        ?.Title,
-                };
+                    var title = prodEmployee.Groups
+    .FirstOrDefault(g => g.GroupType == 2)?.Title;
+                    var request = new KekaEmployeeRequest
+                    {
+                        EmployeeNumber = prodEmployee.EmployeeNumber,
+                        DisplayName = prodEmployee.DisplayName,
+                        FirstName = prodEmployee.FirstName,
+                        MiddleName = prodEmployee.MiddleName,
+                        LastName = prodEmployee.LastName,
+                        Email = prodEmployee.Email,
+                        Gender = prodEmployee.Gender,
+                        DateOfBirth = prodEmployee.DateOfBirth ?? new DateTime(1900, 1, 1),
+                        DateJoined = prodEmployee.JoiningDate,
+                        Department = demoDepartments.FirstOrDefault(d =>
+    string.Equals(d.Name, title, StringComparison.OrdinalIgnoreCase))
+    ?.Id,
+                        JobTitle = "9fff34a9-1dfd-4ab3-a930-e0441d2f35e6",
+                        Location = "8c176bc4-08ce-4364-8792-52e9643d3483",
+                        LegalEntity = "fd120b84-a4a4-4db4-82bc-397d5d5aebdc",
+                    };
 
-                var response = await kekaEmployeeService.CreateEmployeeAsync(request, cancellationToken);
-                logger.LogInformation("Successfully created employee {Email} in demo environment.", prodEmployee.Email);
-                count++;
+                    var response = await kekaEmployeeService.CreateEmployeeAsync(request, cancellationToken);
+                    //logger.LogInformation("Successfully created employee {Email} in demo environment.", prodEmployee.Email);
+                    count++;
+                }
+                else
+                {
+                    //logger.LogWarning("Employee {Email} already exists in demo environment.", prodEmployee.Email);
+                    skipped++;
+                }
             }
-            else
+            catch (Exception ex)
             {
-                logger.LogWarning("Employee {Email} already exists in demo environment.", prodEmployee.Email);
+                logger.LogWarning("Error occur while Creating Employee {EmployeeEmail} date of birth {DOB} in keka.", prodEmployee.Email, prodEmployee.DateOfBirth);
+                departmentNotFoundList.Add(prodEmployee);
+                failed++;           
             }
-            logger.LogInformation("Successfully created {count} employees in demo environment. Total employee count {prodcount}", count, prodEmployees.Count);
         }
+        logger.LogInformation("Successfully created {count} employees in demo environment. Total employee count {prodcount} Skipped {Skipped} Failed {failed}", count, prodEmployees.Count, skipped, failed);
+        departmentNotFoundList.ForEach(d => logger.LogInformation("DisplayName: {Name}, Email: {Email}, Employee Number: {Number}, Department: {Department}", d.DisplayName, d.Email, d.EmployeeNumber, d.Groups.FirstOrDefault(g => g.GroupType == 2)?.Title));
+        logger.LogInformation("Department not found list count {listCount}", departmentNotFoundList.Count);
     }
 }

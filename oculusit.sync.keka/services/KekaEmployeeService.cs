@@ -150,6 +150,52 @@ public sealed class KekaEmployeeService(
         _logger.LogInformation("Fetched {Count} Keka employees total.", allEmployees.Count);
         return allEmployees;
     }
+    public async Task<IReadOnlyList<KekaDepartment>> GetAllDepartmentsAsync(CancellationToken cancellationToken = default)
+    {
+        await SetAuthHeaderAsync(cancellationToken);
+
+        var allDepartments = new List<KekaDepartment>();
+        var pageNumber = 1;
+        bool hasMoreItems;
+
+        do
+        {
+            var uri = new Uri(BuildUri("/hris/departments"), $"?pageNumber={pageNumber}");
+            _logger.LogDebug("Fetching Keka employees page {PageNumber}.", pageNumber);
+
+            var response = await _httpClient.GetAsync(uri, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                _logger.LogWarning("Received 401 fetching Keka departments page {PageNumber}. Refreshing token.", pageNumber);
+                await RefreshAuthHeaderAsync(cancellationToken);
+                response = await _httpClient.GetAsync(uri, cancellationToken);
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("Failed to fetch Keka departments page {PageNumber}. StatusCode: {StatusCode}, Body: {Body}",
+                    pageNumber, response.StatusCode, errorBody);
+                throw new HttpRequestException(
+                    $"Keka GET /hris/departments?pageNumber={pageNumber} failed ({(int)response.StatusCode}): {errorBody}",
+                    null, response.StatusCode);
+            }
+
+            var envelope = await response.Content
+                .ReadFromJsonAsync<KekaDepartmentResponse>(_jsonOptions, cancellationToken);
+
+            if (envelope?.Data is { Count: > 0 } page)
+                allDepartments.AddRange(page);
+
+            hasMoreItems = pageNumber < envelope?.TotalPages;
+            pageNumber++;
+        }
+        while (hasMoreItems);
+
+        _logger.LogInformation("Fetched {Count} Keka departments total.", allDepartments.Count);
+        return allDepartments;
+    }
 
     public async Task<string> CreateEmployeeAsync(KekaEmployeeRequest request, CancellationToken cancellationToken = default)
     {

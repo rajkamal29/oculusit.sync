@@ -15,6 +15,11 @@ public interface IKekaEmployeeService
     Task<IReadOnlyList<KekaEmployee>> GetAllEmployeeAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Fetch all Keka departments from keka.
+    /// </summary>
+    Task<IReadOnlyList<KekaDepartment>> GetAllDepartmentsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Creates a new Keka Employee. Returns the newly created Keka employee ID.
     /// </summary>
     Task<string> CreateEmployeeAsync(KekaEmployeeRequest request, CancellationToken cancellationToken = default);
