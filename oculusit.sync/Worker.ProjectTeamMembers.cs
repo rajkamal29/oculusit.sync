@@ -439,7 +439,7 @@ public sealed partial class Worker
         var skipped = 0;
         var departmentNotFoundList = new List<KekaEmployee>();
 
-        foreach (var prodEmployee in prodEmployees.Where(e => e.Email == "rajkamal_vankayala@oculusit.com"))
+        foreach (var prodEmployee in prodEmployees)
         {
             try
             {
@@ -482,8 +482,9 @@ public sealed partial class Worker
                     var request = new KekaEmployeeUpdateRequest
                     {
                         Department = demoDepartments.FirstOrDefault(d =>
-    string.Equals(d.Name, "Marketing", StringComparison.OrdinalIgnoreCase))
-    ?.Id
+    string.Equals(d.Name, title, StringComparison.OrdinalIgnoreCase))
+    ?.Id,
+                        ReportingManager = reportingManager?.Id
                     };
                     await kekaEmployeeService.UpdateEmployeeAsync(request, response.Id, cancellationToken);
                     logger.LogWarning("Employee {Email} already exists in demo environment.", prodEmployee.Email);
