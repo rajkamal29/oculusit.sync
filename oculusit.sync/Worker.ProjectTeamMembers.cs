@@ -1,3 +1,4 @@
+using Amazon.Runtime.Internal;
 using oculusit.sync.core.models;
 using oculusit.sync.keka.modules;
 using OfficeOpenXml;
@@ -438,16 +439,19 @@ public sealed partial class Worker
         var skipped = 0;
         var departmentNotFoundList = new List<KekaEmployee>();
 
-        foreach (var prodEmployee in prodEmployees)
+        foreach (var prodEmployee in prodEmployees.Where(e => e.Email == "rajkamal_vankayala@oculusit.com"))
         {
             try
             {
+                var title = prodEmployee.Groups
+    .FirstOrDefault(g => g.GroupType == 2)?.Title;
                 if (string.IsNullOrWhiteSpace(prodEmployee.Email))
                     continue;
-                if (!demoEmployeeEmails.Contains(prodEmployee.Email))
+
+                var demoEmployeeEmail = demoEmployeeEmails.Contains(prodEmployee.Email);
+                if (!demoEmployeeEmail)
                 {
-                    var title = prodEmployee.Groups
-    .FirstOrDefault(g => g.GroupType == 2)?.Title;
+                    
                     var request = new KekaEmployeeRequest
                     {
                         EmployeeNumber = prodEmployee.EmployeeNumber,
@@ -468,12 +472,21 @@ public sealed partial class Worker
                     };
 
                     var response = await kekaEmployeeService.CreateEmployeeAsync(request, cancellationToken);
-                    //logger.LogInformation("Successfully created employee {Email} in demo environment.", prodEmployee.Email);
+                    logger.LogInformation("Successfully created employee {Email} in demo environment.", prodEmployee.Email);
                     count++;
                 }
                 else
                 {
-                    //logger.LogWarning("Employee {Email} already exists in demo environment.", prodEmployee.Email);
+                    var response = demoEmployees.FirstOrDefault(d => string.Equals(d.Email, prodEmployee.Email, StringComparison.OrdinalIgnoreCase));
+                    var reportingManager = demoEmployees.FirstOrDefault(d => string.Equals(d.Email, prodEmployee?.ReportsTo?.Email ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+                    var request = new KekaEmployeeUpdateRequest
+                    {
+                        Department = demoDepartments.FirstOrDefault(d =>
+    string.Equals(d.Name, "Marketing", StringComparison.OrdinalIgnoreCase))
+    ?.Id
+                    };
+                    await kekaEmployeeService.UpdateEmployeeAsync(request, response.Id, cancellationToken);
+                    logger.LogWarning("Employee {Email} already exists in demo environment.", prodEmployee.Email);
                     skipped++;
                 }
             }
@@ -485,7 +498,7 @@ public sealed partial class Worker
             }
         }
         logger.LogInformation("Successfully created {count} employees in demo environment. Total employee count {prodcount} Skipped {Skipped} Failed {failed}", count, prodEmployees.Count, skipped, failed);
-        departmentNotFoundList.ForEach(d => logger.LogInformation("DisplayName: {Name}, Email: {Email}, Employee Number: {Number}, Department: {Department}", d.DisplayName, d.Email, d.EmployeeNumber, d.Groups.FirstOrDefault(g => g.GroupType == 2)?.Title));
+        departmentNotFoundList.ForEach(d => logger.LogInformation("DisplayName: {Name}, Email: {Email}, Employee Number: {Number}, Department: {Department}, exit status: {status}", d.DisplayName, d.Email, d.EmployeeNumber, d.Groups.FirstOrDefault(g => g.GroupType == 2)?.Title, d.ExitStatus));
         logger.LogInformation("Department not found list count {listCount}", departmentNotFoundList.Count);
     }
 }

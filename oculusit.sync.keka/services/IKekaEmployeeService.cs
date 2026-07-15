@@ -25,6 +25,11 @@ public interface IKekaEmployeeService
     Task<string> CreateEmployeeAsync(KekaEmployeeRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Creates a new Keka Employee. Returns the newly created Keka employee ID.
+    /// </summary>
+    Task<string> UpdateEmployeeAsync(KekaEmployeeUpdateRequest request, string employeeId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns the default project manager detail.
     /// </summary>
     Task<KekaEmployee?> GetDefaultProjectManagerEmployeeAsync(CancellationToken cancellationToken = default);

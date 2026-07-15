@@ -35,13 +35,12 @@ public sealed partial class Worker(
 
             var syncStartedAt = DateTime.UtcNow;
 
-            //await SyncCompaniesAndProjectsAsync(syncStartedAt, stoppingToken);
-
             //await GenerateProjectTeamMembersExcelAsync(stoppingToken);
 
             //await GenerateClientRateCardExcelAsync(stoppingToken);
 
             //await SyncProdEmployeeToDemo(stoppingToken);
+            await SyncCompaniesAndProjectsAsync(syncStartedAt, stoppingToken);
 
             //await syncStateService.EnsureDefaultProjectAsync(stoppingToken);
             //var defaultProjectManager = await kekaEmployeeService.GetDefaultProjectManagerEmployeeAsync(stoppingToken);

@@ -52,6 +52,9 @@ public sealed class KekaEmployee
     [JsonPropertyName("dateOfBirth")]
     public DateTime? DateOfBirth { get; init; }
 
+    [JsonPropertyName("exitStatus")]
+    public int? ExitStatus { get; init; }
+
     [JsonPropertyName("groups")]
     public IReadOnlyList<KekaGroupInfo> Groups { get; init; } = [];
 }
@@ -144,6 +147,21 @@ public class KekaEmployeeRequest
 
     [JsonPropertyName("nationality")]
     public string? Nationality { get; set; }
+
+    [JsonPropertyName("reportingManager")]
+    public string? ReportingManager { get; set; }
+}
+
+public class KekaEmployeeUpdateRequest
+{
+    [JsonPropertyName("employeeNumber")]
+    public string? EmployeeNumber { get; set; }
+
+    [JsonPropertyName("department")]
+    public string? Department { get; set; }
+
+    [JsonPropertyName("reportingManager")]
+    public string? ReportingManager { get; set; }
 }
 
 

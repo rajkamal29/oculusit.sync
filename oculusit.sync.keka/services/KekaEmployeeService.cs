@@ -237,6 +237,39 @@ public sealed class KekaEmployeeService(
             envelope.Data, request.DisplayName);
         return envelope.Data;
     }
+    public async Task<string> UpdateEmployeeAsync(KekaEmployeeUpdateRequest request, string employeeId, CancellationToken cancellationToken = default)
+    {
+        await SetAuthHeaderAsync(cancellationToken);
+
+        var uri = BuildUri($"/hris/employees/jobdetails?employeeId={employeeId}");
+        _logger.LogDebug("Creating Keka employee with name {Name}.", request.EmployeeNumber);
+
+        var response = await _httpClient.PutAsJsonAsync(uri, request, _jsonOptions, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            _logger.LogWarning("Received 401 creating Keka employee. Refreshing token.");
+            await RefreshAuthHeaderAsync(cancellationToken);
+            response = await _httpClient.PostAsJsonAsync(uri, request, _jsonOptions, cancellationToken);
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("Failed to create Keka employee. StatusCode: {StatusCode}, Body: {Body}",
+                response.StatusCode, errorBody);
+            throw new HttpRequestException(
+                $"Keka POST /hris/employees failed ({(int)response.StatusCode}): {errorBody}",
+                null, response.StatusCode);
+        }
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<KekaUpdateClientResponse>(_jsonOptions, cancellationToken);
+
+        _logger.LogInformation("Successfully created Keka employee {KekaEmployeeId} for name {Name}.",
+            envelope.Data, request.EmployeeNumber);
+        return envelope.Message;
+    }
 
     public async Task<KekaEmployee?> GetDefaultProjectManagerEmployeeAsync(CancellationToken cancellationToken = default)
     {
