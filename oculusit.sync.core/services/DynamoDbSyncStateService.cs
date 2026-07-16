@@ -106,12 +106,6 @@ public sealed class DynamoDbSyncStateService(
             }
         }
 
-        string billingType = string.Empty;
-        if (response.Item.TryGetValue(BillingTypeAttribute, out var billingTypeAttr))
-        {
-            billingType = billingTypeAttr.S;
-        }
-
         var companies = new List<SyncedCompanyEntry>();
         if (response.Item.TryGetValue(CompaniesAttribute, out var listAttr) && listAttr.L is { Count: > 0 })
         {
@@ -249,7 +243,6 @@ public sealed class DynamoDbSyncStateService(
             InitialCompanies      = initialCompanies,
             Projects              = projects,
             DefaultProject        = defaultProject,
-            BillingType           = billingType,
             InitialProjects       = initialProjects,
             FailedProjects        = failedProjects,
             FailedCompanies       = failedCompanies,
@@ -1353,5 +1346,30 @@ public sealed class DynamoDbSyncStateService(
             logger.LogError(ex, "Error initializing BillingType sync type in the database.");
             throw;
         }
+    }
+
+    public async Task<string> GetBillingTypeAsync(CancellationToken cancellationToken = default)
+    {
+        logger.LogDebug("Reading BillingType from DynamoDB.");
+
+        var request = new GetItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.BillingType }
+            }
+        };
+
+        var response = await dynamoDb.GetItemAsync(request, cancellationToken);
+
+        if (!response.IsItemSet || !response.Item.TryGetValue(BillingTypeAttribute, out var billingAttr))
+        {
+            logger.LogInformation("BillingType not found in DynamoDB; returning empty string.");
+            return string.Empty;
+        }
+
+        logger.LogInformation("Loaded BillingType: {BillingType}.", billingAttr.S);
+        return billingAttr.S ?? string.Empty;
     }
 }

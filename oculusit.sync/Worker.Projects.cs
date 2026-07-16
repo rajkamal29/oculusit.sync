@@ -46,6 +46,7 @@ public sealed partial class Worker
     private async Task SyncProjectsAsync(
         DateTime syncStartedAt,
         IReadOnlyList<string> retryProjectIds,
+        string defaultBillingType,
         KekaEmployee? defaultProjectManager,
         CancellationToken stoppingToken)
     {
@@ -67,7 +68,7 @@ public sealed partial class Worker
         {
             logger.LogInformation("No previous project sync state found. Running full project sync.");
 
-            var result        = await projectOrchestration.SyncProjectsAsync(companySyncState, projectStatusSyncState, allEmployeesState, defaultProjectManager, stoppingToken);
+            var result        = await projectOrchestration.SyncProjectsAsync(companySyncState, projectStatusSyncState, defaultBillingType, allEmployeesState, defaultProjectManager, stoppingToken);
             var lastUpdatedAt  = result.LastRecordUpdatedAt ?? syncStartedAt;
 
             await syncStateService.UpsertProjectsAsync(SyncTypes.Project, result.SyncedEntries, lastUpdatedAt, stoppingToken);
@@ -92,7 +93,7 @@ public sealed partial class Worker
         {
             logger.LogInformation("Incremental project sync. Last sync was at {LastUpdatedAt}.", projectSyncState.LastUpdatedAt);
 
-            var result        = await projectOrchestration.SyncProjectsIncrementalAsync(projectSyncState, companySyncState, projectStatusSyncState, allEmployeesState, retryProjectIds, defaultProjectManager, stoppingToken);
+            var result        = await projectOrchestration.SyncProjectsIncrementalAsync(projectSyncState, companySyncState, projectStatusSyncState, defaultBillingType, allEmployeesState, retryProjectIds, defaultProjectManager, stoppingToken);
             var lastUpdatedAt  = result.LastRecordUpdatedAt ?? syncStartedAt;
 
             await syncStateService.UpsertProjectsAsync(SyncTypes.Project, result.SyncedEntries, lastUpdatedAt, stoppingToken);

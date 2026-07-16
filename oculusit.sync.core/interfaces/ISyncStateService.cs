@@ -126,4 +126,10 @@ public interface ISyncStateService
     /// If it doesn't exist, creates it with default billing type as 1 (Fixed Fee).
     /// </summary>
     Task EnsureBillingTypeAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads the BillingType value from the <c>BillingType</c> record.
+    /// Returns empty string when no BillingType exists.
+    /// </summary>
+    Task<string> GetBillingTypeAsync(CancellationToken cancellationToken = default);
 }

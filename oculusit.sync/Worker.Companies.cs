@@ -9,6 +9,7 @@ public sealed partial class Worker
     private async Task SyncCompaniesAsync(
         DateTime syncStartedAt,
         IReadOnlyList<string> retryCompanyIds,
+        string defaultBillingType,
         KekaEmployee? defaultProjectManager,
         CancellationToken stoppingToken)
     {
@@ -18,7 +19,7 @@ public sealed partial class Worker
         {
             logger.LogInformation("No previous sync state found in DynamoDB. Running full company sync.");
 
-            var syncedEntries = await companyOrchestration.SyncCompaniesToKekaAsync(defaultProjectManager, stoppingToken);
+            var syncedEntries = await companyOrchestration.SyncCompaniesToKekaAsync(defaultProjectManager, defaultBillingType, stoppingToken);
             var lastUpdatedAt = await PersistCompanySyncResultAsync(
                 syncedEntries,
                 syncStartedAt,
@@ -34,7 +35,7 @@ public sealed partial class Worker
 
         logger.LogInformation("Incremental company sync. Last sync was at {LastUpdatedAt}.", syncState.LastUpdatedAt);
 
-        var incrementalResult = await companyOrchestration.SyncCompaniesIncrementalAsync(syncState, defaultProjectManager, retryCompanyIds, stoppingToken);
+        var incrementalResult = await companyOrchestration.SyncCompaniesIncrementalAsync(syncState, defaultProjectManager, defaultBillingType, retryCompanyIds, stoppingToken);
 
         var lastUpdatedAtIncremental = await PersistCompanySyncResultAsync(
             incrementalResult,

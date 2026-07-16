@@ -19,7 +19,7 @@ public sealed class CompanyOrchestrationService(
     ISyncStateService syncStateService,
     ILogger<CompanyOrchestrationService> logger) : ICompanyOrchestrationService
 {
-    public async Task<CompanySyncResult> SyncCompaniesToKekaAsync(KekaEmployee? defaultProjectManager, CancellationToken cancellationToken = default)
+    public async Task<CompanySyncResult> SyncCompaniesToKekaAsync(KekaEmployee? defaultProjectManager, string defaultBillingType, CancellationToken cancellationToken = default)
     {
         var companies = await connectWiseService.GetAllCompaniesAsync(cancellationToken);
         logger.LogInformation("Fetched {Count} companies from ConnectWise. Starting Keka sync.", companies.Count);
@@ -59,6 +59,7 @@ public sealed class CompanyOrchestrationService(
         return await ProcessCompaniesAsync(
             mappedCompanies,
             kekaClientIdByCompanyId,
+            defaultBillingType,
             defaultProjectManager,
             syncLabel: "Full", 
             cancellationToken: cancellationToken);
@@ -67,6 +68,7 @@ public sealed class CompanyOrchestrationService(
     public async Task<CompanySyncResult> SyncCompaniesIncrementalAsync(
         SyncState syncState,
         KekaEmployee? defaultProjectManager,
+        string defaultBillingType,
         IReadOnlyList<string> retryCompanyIds,
         CancellationToken cancellationToken = default)
     {
@@ -106,6 +108,7 @@ public sealed class CompanyOrchestrationService(
         return await ProcessCompaniesAsync(
             mergedCompanies,
             kekaIdByCompanyId,
+            defaultBillingType,
             defaultProjectManager,
             syncLabel: "Incremental",
             cancellationToken: cancellationToken);
@@ -127,6 +130,7 @@ public sealed class CompanyOrchestrationService(
     private async Task<CompanySyncResult> ProcessCompaniesAsync(
         IReadOnlyList<ConnectWiseCompany> companies,
         IReadOnlyDictionary<string, string> kekaClientIdByCompanyId,
+        string defaultBillingType,
         KekaEmployee? defaultProjectManager,
         string syncLabel,
         CancellationToken cancellationToken)
@@ -176,7 +180,7 @@ public sealed class CompanyOrchestrationService(
 
                 try
                 {
-                    await CreateDefaultProjectAsync(companyId, kekaClientId, companyDateEntered, kekaEmployeeId, cancellationToken);
+                    await CreateDefaultProjectAsync(companyId, kekaClientId, defaultBillingType, companyDateEntered, kekaEmployeeId, cancellationToken);
                 }
                 catch (Exception ex)
                 {
@@ -268,6 +272,7 @@ public sealed class CompanyOrchestrationService(
     private async Task CreateDefaultProjectAsync(
         string companyId,
         string kekaClientId,
+        string defaultBillingType,
         DateTime startDate,
         string? kekaEmployeeId,
         CancellationToken cancellationToken)
@@ -278,9 +283,6 @@ public sealed class CompanyOrchestrationService(
         var clientProjects = await kekaProjectService.GetProjectsByClientIdAsync(kekaClientId, cancellationToken);
         var existingDefaultProject = clientProjects.FirstOrDefault(p =>
             string.Equals(p.Code, projectCode, StringComparison.OrdinalIgnoreCase));
-
-        // BillingType sync state provides the default billing type mappings (billingType → numeric mappedValue).
-        var billingTypeSyncState = await syncStateService.GetAsync(SyncTypes.BillingType, cancellationToken);
 
         string kekaProjectId;
 
@@ -295,7 +297,7 @@ public sealed class CompanyOrchestrationService(
                 StartDate  = startDate,
                 EndDate    = null,
                 IsBillable = true,
-                BillingType = int.Parse(billingTypeSyncState?.BillingType ?? "1"),
+                BillingType = int.Parse(defaultBillingType ?? "1"),
                 ProjectManager = new List<string> { kekaEmployeeId ?? string.Empty }
             };
 

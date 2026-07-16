@@ -352,7 +352,7 @@ public sealed partial class Worker
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        logger.LogInformation("Found {Count} retry timesheets in RetryTimeSheets SyncState.", candidateTimeSheetIds.Count);
+        logger.LogInformation("Found {Count} retry timesheets in database.", candidateTimeSheetIds.Count);
         return candidateTimeSheetIds;
     }
 }

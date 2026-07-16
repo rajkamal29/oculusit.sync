@@ -16,7 +16,6 @@ public sealed class ProjectOrchestrationService(
     IConnectWiseProjectService connectWiseProjectService,
     IKekaProjectService kekaProjectService,
     IKekaEmployeeService kekaEmployeeService,
-    ISyncStateService syncStateService,
     ILogger<ProjectOrchestrationService> logger) : IProjectOrchestrationService
 {
     private readonly Dictionary<string, KekaEmployee?> employeeCache = new();
@@ -38,6 +37,7 @@ public sealed class ProjectOrchestrationService(
     public async Task<ProjectSyncResult> SyncProjectsAsync(
         SyncState companySyncState,
         SyncState? projectStatusSyncState,
+        string defaultBillingType,
         IReadOnlyList<TimeEntryEmployeeDedupeState> allEmployeesState,
         KekaEmployee? defaultProjectManager,
         CancellationToken cancellationToken = default)
@@ -132,10 +132,7 @@ public sealed class ProjectOrchestrationService(
                 if (!kekaProjectsByCode.TryGetValue(project.Id.ToString(), out var existing))
                 {
                     // New project — create in Keka then provision all 6 standard tasks.
-
-                    // BillingType sync state provides the default billing type mappings value (billingType → numeric mappedValue).
-                    var billingTypeSyncState = await syncStateService.GetAsync(SyncTypes.BillingType, cancellationToken);
-                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, kekaEmployee, billingTypeSyncState?.BillingType, statusMapping);
+                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, kekaEmployee, defaultBillingType, statusMapping);
                     var kekaProjectId = await kekaProjectService.CreateProjectAsync(request, cancellationToken);
                     logger.LogInformation("Created Keka project {KekaProjectId} for ConnectWise project {ProjectId} - {ProjectName}.",
                         kekaProjectId, project.Id, project.Name);
@@ -237,6 +234,7 @@ public sealed class ProjectOrchestrationService(
         SyncState projectSyncState,
         SyncState companySyncState,
         SyncState? projectStatusSyncState,
+        string defaultBillingType,
         IReadOnlyList<TimeEntryEmployeeDedupeState> allEmployeesState,
         IReadOnlyList<string> retryProjectIds,
         KekaEmployee? defaultProjectManager,
@@ -364,10 +362,7 @@ public sealed class ProjectOrchestrationService(
                 else
                 {
                     // New project — create in Keka then provision all 6 standard tasks.
-
-                    // BillingType sync state provides the default billing type mappings (billingType → numeric).
-                    var billingTypeSyncState = await syncStateService.GetAsync(SyncTypes.BillingType, cancellationToken);
-                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, kekaEmployee, billingTypeSyncState?.BillingType, statusMapping);
+                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, kekaEmployee, defaultBillingType, statusMapping);
                     var kekaProjectId = await kekaProjectService.CreateProjectAsync(request, cancellationToken);
                     logger.LogInformation(
                         "Incremental: Created Keka project {KekaProjectId} for ConnectWise project {ProjectId} - {ProjectName}.",
