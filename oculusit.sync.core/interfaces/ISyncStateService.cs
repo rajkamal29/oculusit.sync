@@ -110,6 +110,18 @@ public interface ISyncStateService
     Task EnsureDefaultProjectAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Ensures the Time off sync type exists in the database.
+    /// If it doesn't exist, creates it with default work type (Personal,PTO,Sick,Vacation,Holiday).
+    /// </summary>
+    Task EnsureTimeOffSyncTypeAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads Time Off sync type from the <c>TimeOff</c> record.
+    /// Returns the time off work type to ignore syncing the time entries.
+    /// </summary>
+    Task<string> GetTimeOffSyncTypeAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Ensures the BillingType sync type exists in the database.
     /// If it doesn't exist, creates it with default billing type as 1 (Fixed Fee).
     /// </summary>

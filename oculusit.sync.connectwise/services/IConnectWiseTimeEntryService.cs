@@ -29,5 +29,6 @@ public interface IConnectWiseTimeEntryService
     /// </summary>
     Task<IReadOnlyList<ConnectWiseTimeEntry>> GetTimeEntriesByTimesheetIdAsync(
         int timesheetId,
+        string timeOffWorkType,
         CancellationToken cancellationToken = default);
 }

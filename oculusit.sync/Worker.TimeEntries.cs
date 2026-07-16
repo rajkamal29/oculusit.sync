@@ -7,7 +7,7 @@ namespace oculusit.sync;
 
 public sealed partial class Worker
 {
-    private async Task SyncTimeSheetAsync(IReadOnlyList<string> retryTimeSheetIds, CancellationToken stoppingToken)
+    private async Task SyncTimeSheetAsync(IReadOnlyList<string> retryTimeSheetIds, string timeOffWorkType, CancellationToken stoppingToken)
     {
         var timeSheetState = await syncStateService.GetAsync(SyncTypes.TimeSheets, stoppingToken);
 
@@ -163,7 +163,7 @@ public sealed partial class Worker
                         timesheet.Id, memberId, year, period);
 
                     var timeEntries = await connectWiseTimeEntryService.GetTimeEntriesByTimesheetIdAsync(
-                        timesheet.Id, stoppingToken);
+                        timesheet.Id, timeOffWorkType, stoppingToken);
 
                     var postedCount = await timeEntryOrchestrationService.LogTimeEntriesBatchAsync(
                         timeEntries,

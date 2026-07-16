@@ -26,6 +26,7 @@ public sealed class DynamoDbSyncStateService(
     private const string ProjectManagerAttribute   = "projectManager";
     private const string EmailAttribute            = "email";
     private const string BillingTypeAttribute      = "billingType";
+    private const string WorkTypeAttribute         = "workType";
     private const string ProjectStatusesAttribute       = "projectStatuses";
     private const string FailedProjectStatusesAttribute = "failedProjectStatuses";
     private const string IdAttribute               = "id";
@@ -1129,6 +1130,85 @@ public sealed class DynamoDbSyncStateService(
             logger.LogError(ex, "Error initializing DefaultProject sync type in the database.");
             throw;
         }
+    }
+
+    public async Task EnsureTimeOffSyncTypeAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            logger.LogDebug("Checking if TimeOff sync type exists in DynamoDB.");
+
+            var request = new GetItemRequest
+            {
+                TableName = _tableName,
+                Key = new Dictionary<string, AttributeValue>
+                {
+                    [KeyAttribute] = new AttributeValue { S = SyncTypes.TimeOff }
+                },
+                ProjectionExpression = KeyAttribute
+            };
+
+            var response = await dynamoDb.GetItemAsync(request, cancellationToken);
+
+            if (!response.IsItemSet)
+            {
+                const string workTypes = "Personal,PTO,Sick,Vacation,Holiday";
+
+                var item = new Dictionary<string, AttributeValue>
+                {
+                    [KeyAttribute] = new AttributeValue { S = SyncTypes.TimeOff },
+                    [WorkTypeAttribute] = new AttributeValue { S = workTypes },
+                    [LastUpdatedAtAttribute] = new AttributeValue { S = DateTime.UtcNow.ToString("o") }
+                };
+
+                var putRequest = new PutItemRequest
+                {
+                    TableName = _tableName,
+                    Item = item
+                };
+
+                await dynamoDb.PutItemAsync(putRequest, cancellationToken);
+
+                logger.LogInformation(
+                    "Initialized TimeOff sync type with work types: {WorkTypes}.",
+                    workTypes);
+            }
+            else
+            {
+                logger.LogDebug("TimeOff sync type already exists in the database.");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error initializing TimeOff sync type in the database.");
+            throw;
+        }
+    }
+
+    public async Task<string> GetTimeOffSyncTypeAsync(CancellationToken cancellationToken = default)
+    {
+        logger.LogDebug("Reading TimeOff work types from DynamoDB.");
+
+        var request = new GetItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                [KeyAttribute] = new AttributeValue { S = SyncTypes.TimeOff }
+            }
+        };
+
+        var response = await dynamoDb.GetItemAsync(request, cancellationToken);
+
+        if (!response.IsItemSet ||
+            !response.Item.TryGetValue(WorkTypeAttribute, out var workTypeAttr))
+        {
+            return string.Empty;
+        }
+
+        logger.LogInformation("Loaded TimeOff work types: {WorkTypes}.", workTypeAttr.S);
+
+        return workTypeAttr.S ?? string.Empty;
     }
 
     public async Task<IReadOnlyList<RetryTimeSheetEntry>> GetRetryTimeSheetsAsync(CancellationToken cancellationToken = default)

@@ -30,6 +30,10 @@ public sealed partial class Worker(
 
             await syncStateService.EnsureDefaultProjectAsync(stoppingToken);
             var defaultProjectManager = await kekaEmployeeService.GetDefaultProjectManagerEmployeeAsync(stoppingToken);
+
+            await syncStateService.EnsureTimeOffSyncTypeAsync(stoppingToken);
+            var timeOffWorkType = await syncStateService.GetTimeOffSyncTypeAsync(stoppingToken);
+
             await syncStateService.EnsureBillingTypeAsync(stoppingToken);
             await SyncProjectStatusAsync(syncStartedAt, stoppingToken);
             await SyncTimeEntryEmployeesAsync(stoppingToken);
@@ -39,7 +43,7 @@ public sealed partial class Worker(
             var retryProjectIds = await GetRetryProjectIdsFromSyncStateAsync(stoppingToken);
             await SyncProjectsAsync(syncStartedAt, retryProjectIds, defaultProjectManager, stoppingToken);
             var retryTimeSheetIds = await GetRetryTimeSheetIdsFromSyncStateAsync(stoppingToken);
-            await SyncTimeSheetAsync(retryTimeSheetIds, stoppingToken);
+            await SyncTimeSheetAsync(retryTimeSheetIds, timeOffWorkType, stoppingToken);
 
             logger.LogInformation("Sync complete. Worker shutting down.");
         }
