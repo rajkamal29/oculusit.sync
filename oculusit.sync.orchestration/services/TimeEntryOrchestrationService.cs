@@ -304,9 +304,15 @@ public sealed class TimeEntryOrchestrationService(
                 {
                     await kekaProjectService.UpdateProjectAllocationAsync(
                         kekaProject.Id,
-                        existingAllocation.Id,
+                        existingAllocation?.Id ?? string.Empty,
                         new KekaUpdateProjectAllocationRequest { EndDate = projectEndDate },
                         cancellationToken);
+
+                    logger.LogInformation(
+                        "Updated end date of allocation {AllocationId} to Keka project {ProjectName} to {EndDate}.",
+                        existingAllocation?.Id,
+                        kekaProject.Name,
+                        projectEndDate.Value);
                 }
                 catch (Exception ex)
                 {
@@ -316,12 +322,6 @@ public sealed class TimeEntryOrchestrationService(
                         existingAllocation.Id,
                         kekaProject.Name);
                 }
-
-                logger.LogInformation(
-                    "Updated end date of allocation {AllocationId} on Keka project {ProjectName} to {EndDate}.",
-                    existingAllocation.Id,
-                    kekaProject.Name,
-                    projectEndDate.Value);
             }
 
             return;
@@ -333,13 +333,13 @@ public sealed class TimeEntryOrchestrationService(
             .FirstOrDefault(g => g.GroupType == DepartmentGroupType)
             ?.Title;
 
-        string? billingRoleId = null;
+        KekaRateCard? billingRole = null;
 
         if (!string.IsNullOrWhiteSpace(departmentName))
         {
-            billingRoleId = await kekaFinanceService.GetBillingRoleIdAsync(departmentName, cancellationToken);
+            billingRole = await kekaFinanceService.GetBillingRoleAsync(departmentName, cancellationToken);
 
-            if (string.IsNullOrWhiteSpace(billingRoleId))
+            if (billingRole is null)
             {
                 logger.LogWarning(
                     "No Keka billing role found matching department '{Department}' for employee {EmployeeId}.",
@@ -363,7 +363,10 @@ public sealed class TimeEntryOrchestrationService(
         {
             EmployeeId = kekaEmployee.Id,
             AllocationPercentage = 100,
-            BillingRoleId = billingRoleId,
+            BillingRoleId = billingRole.BillingRoleId,
+            RateCardId = billingRole.RateCardId,
+            RateCategoryId = billingRole.RateCategoryId,
+            RateUnit = billingRole.RateUnit,
             StartDate = startDate,
             EndDate = kekaProject.EndDate?.Date ?? null,
             BillingType = kekaProject.IsBillable
@@ -386,7 +389,7 @@ public sealed class TimeEntryOrchestrationService(
             "Created project allocation for employee {EmployeeId} on Keka project {ProjectName} with billing role {BillingRoleId}.",
             kekaEmployee.Id,
             kekaProject.Name,
-            billingRoleId);
+            billingRole.BillingRoleId);
     }
 
     private async Task<string?> ResolveOrCreateTaskIdAsync(

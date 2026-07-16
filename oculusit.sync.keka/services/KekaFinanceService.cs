@@ -41,9 +41,9 @@ public sealed class KekaFinanceService(
             new AuthenticationHeaderValue("Bearer", token);
     }
 
-    public async Task<string?> GetBillingRoleIdAsync(string departmentName, CancellationToken cancellationToken = default)
+    public async Task<KekaRateCard?> GetBillingRoleAsync(string departmentName, CancellationToken cancellationToken = default)
     {
-        string? billingRoleId = null;
+        KekaRateCard? billingRole = null;
         var pageNumber = 1;
 
         while (true)
@@ -67,7 +67,7 @@ public sealed class KekaFinanceService(
                 var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogWarning("Failed to fetch Keka rate cards. StatusCode: {StatusCode}, Body: {Body}",
                     response.StatusCode, errorBody);
-                return billingRoleId;
+                return billingRole;
             }
 
             var envelope = await response.Content
@@ -75,11 +75,11 @@ public sealed class KekaFinanceService(
 
             if (envelope?.Data is { Count: > 0 })
             {
-                billingRoleId = envelope.Data.FirstOrDefault(d => string.Equals(d.RoleName, departmentName, StringComparison.OrdinalIgnoreCase))?.BillingRoleId;
+                billingRole = envelope.Data.FirstOrDefault(d => string.Equals(d.RoleName, departmentName, StringComparison.OrdinalIgnoreCase));
 
-                if (!string.IsNullOrEmpty(billingRoleId))
+                if (billingRole is not null)
                 {
-                    _logger.LogInformation("Found billing role ID {BillingRoleId} for department {DepartmentName}.", billingRoleId, departmentName);
+                    _logger.LogInformation("Found billing role ID {BillingRoleId} for department {DepartmentName}.", billingRole.BillingRoleId, departmentName);
                     break;
                 }
             }
@@ -93,6 +93,6 @@ public sealed class KekaFinanceService(
             pageNumber++;
         }
 
-        return billingRoleId;
+        return billingRole;
     }
 }

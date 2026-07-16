@@ -322,7 +322,7 @@ public sealed class KekaRateCard
     public decimal BillRate { get; init; }
 
     [JsonPropertyName("approxCostRate")]
-    public decimal ApproxCostRate { get; init; }
+    public decimal? ApproxCostRate { get; init; }
 
     [JsonPropertyName("rateCardName")]
     public string RateCardName { get; init; } = string.Empty;

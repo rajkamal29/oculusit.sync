@@ -419,9 +419,9 @@ public sealed class KekaProjectService(
     {
         await SetAuthHeaderAsync(cancellationToken);
 
-        var uri = BuildUri($"/psa/projects/{projectId}/allocations/{allocationId}");
-        _logger.LogDebug("Updating Keka project allocation {AllocationId} for project {ProjectId}, employee {EmployeeId}.",
-            allocationId, projectId, request.EmployeeId);
+        var uri = BuildUri($"/psa/projects/{projectId}/allocations/resources/{allocationId}");
+        _logger.LogDebug("Updating Keka project allocation {AllocationId} for project {ProjectId}.",
+            allocationId, projectId);
 
         var response = await _httpClient.PutAsJsonAsync(uri, request, _jsonOptions, cancellationToken);
 
