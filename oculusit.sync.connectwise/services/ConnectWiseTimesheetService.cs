@@ -30,7 +30,7 @@ public sealed class ConnectWiseTimesheetService(
     ];
 
     private const string AuditTrailFields =
-        "id,transactionType,dateTimeStamp,user,details,fieldName,oldValue,newValue,statusBefore,statusAfter,_info";
+        "id,member,source,type,message,oldValue,newValue,value,_info";
 
     public async Task<ConnectWiseTimesheet?> GetTimesheetByIdAsync(
         int timesheetId,
@@ -253,7 +253,7 @@ public sealed class ConnectWiseTimesheetService(
         try
         {
             using var request = CreateRequest(HttpMethod.Get,
-                $"/timesheets/{timesheetId}/audittrail?pageSize={Config.PageSize}&fields={AuditTrailFields}&orderBy=dateTimeStamp desc");
+                $"/time/sheets/{timesheetId}/audits?pageSize={Config.PageSize}&fields={AuditTrailFields}");
             using var response = await HttpClient.SendAsync(request, cancellationToken);
 
             if (!response.IsSuccessStatusCode)

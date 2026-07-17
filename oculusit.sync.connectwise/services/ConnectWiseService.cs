@@ -67,8 +67,9 @@ public sealed class ConnectWiseService(
 
     public Task<IReadOnlyList<ConnectWiseTimeEntry>> GetTimeEntriesByTimesheetIdAsync(
         int timesheetId,
+        string timeOffWorkType,
         CancellationToken cancellationToken = default)
-        => _timeEntries.GetTimeEntriesByTimesheetIdAsync(timesheetId, cancellationToken);
+        => _timeEntries.GetTimeEntriesByTimesheetIdAsync(timesheetId, timeOffWorkType, cancellationToken);
 
     public Task<ConnectWiseTimesheet?> GetTimesheetByIdAsync(
         int timesheetId,

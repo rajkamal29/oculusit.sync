@@ -83,6 +83,7 @@ public sealed class ConnectWiseTimeEntryService(
 
     public async Task<IReadOnlyList<ConnectWiseTimeEntry>> GetTimeEntriesByTimesheetIdAsync(
         int timesheetId,
+        string timeOffWorkType,
         CancellationToken cancellationToken = default)
     {
         if (timesheetId <= 0)
@@ -95,7 +96,7 @@ public sealed class ConnectWiseTimeEntryService(
             "Fetching ConnectWise time entries for timesheet ID {TimesheetId}.",
             timesheetId);
 
-        var condition = $"timesheet/id = {timesheetId}";
+        var condition = $"timesheet/id = {timesheetId} AND workType/name NOT IN ({timeOffWorkType})";
 
         var results = await FetchPagedAsync<ConnectWiseTimeEntry>(
             relativeUrlBase: "/time/entries",

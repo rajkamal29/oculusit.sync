@@ -8,6 +8,7 @@ using oculusit.sync.keka.services;
 using oculusit.sync.orchestration.mappings;
 using Polly.Timeout;
 using System.Globalization;
+using System.Net;
 
 namespace oculusit.sync.orchestration.services;
 
@@ -15,7 +16,6 @@ public sealed class ProjectOrchestrationService(
     IConnectWiseProjectService connectWiseProjectService,
     IKekaProjectService kekaProjectService,
     IKekaEmployeeService kekaEmployeeService,
-    ISyncStateService syncStateService,
     ILogger<ProjectOrchestrationService> logger) : IProjectOrchestrationService
 {
     private readonly Dictionary<string, KekaEmployee?> employeeCache = new();
@@ -37,6 +37,7 @@ public sealed class ProjectOrchestrationService(
     public async Task<ProjectSyncResult> SyncProjectsAsync(
         SyncState companySyncState,
         SyncState? projectStatusSyncState,
+        string defaultBillingType,
         IReadOnlyList<TimeEntryEmployeeDedupeState> allEmployeesState,
         KekaEmployee? defaultProjectManager,
         CancellationToken cancellationToken = default)
@@ -115,13 +116,23 @@ public sealed class ProjectOrchestrationService(
                     kekaEmployee = defaultProjectManager;
                 }
 
+                if (kekaEmployee is null)
+                {
+                    logger.LogWarning(
+                        "Full Sync: Keka Employee {Member} not found or some error occurred while searching the employee to update project manager. The project will not have a project manager assigned for ConnectWise project {ProjectId} - {ProjectName}.",
+                        project.Manager?.Name, project.Id, project.Name);
+                    retryEntries.Add(new RetryProjectEntry
+                    {
+                        Id = project.Id.ToString(),
+                        Name = project.Name ?? string.Empty,
+                        ErrorMessage = $"Full Sync: Keka Employee {project.Manager?.Name} not found or some error occurred while searching the employee to update project manager. The project will not have a project manager assigned for ConnectWise project {project.Id} - {project.Name}."
+                    });
+                }
+
                 if (!kekaProjectsByCode.TryGetValue(project.Id.ToString(), out var existing))
                 {
                     // New project — create in Keka then provision all 6 standard tasks.
-
-                    // BillingType sync state provides the default billing type mappings value (billingType → numeric mappedValue).
-                    var billingTypeSyncState = await syncStateService.GetAsync(SyncTypes.BillingType, cancellationToken);
-                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, kekaEmployee, billingTypeSyncState?.BillingType, statusMapping);
+                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, kekaEmployee, defaultBillingType, statusMapping);
                     var kekaProjectId = await kekaProjectService.CreateProjectAsync(request, cancellationToken);
                     logger.LogInformation("Created Keka project {KekaProjectId} for ConnectWise project {ProjectId} - {ProjectName}.",
                         kekaProjectId, project.Id, project.Name);
@@ -176,6 +187,19 @@ public sealed class ProjectOrchestrationService(
                     ErrorMessage = tex.Message
                 });
             }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                logger.LogWarning(ex,
+                    "Internal Server Error syncing ConnectWise project {ProjectId} - {ProjectName} to Keka.",
+                    project.Id, project.Name);
+                failed++;
+                retryEntries.Add(new RetryProjectEntry
+                {
+                    Id = project.Id.ToString(),
+                    Name = project.Name ?? string.Empty,
+                    ErrorMessage = ex.Message
+                });
+            }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to sync ConnectWise project {ProjectId} - {ProjectName} to Keka.",
@@ -210,6 +234,7 @@ public sealed class ProjectOrchestrationService(
         SyncState projectSyncState,
         SyncState companySyncState,
         SyncState? projectStatusSyncState,
+        string defaultBillingType,
         IReadOnlyList<TimeEntryEmployeeDedupeState> allEmployeesState,
         IReadOnlyList<string> retryProjectIds,
         KekaEmployee? defaultProjectManager,
@@ -302,6 +327,19 @@ public sealed class ProjectOrchestrationService(
                     kekaEmployee = defaultProjectManager;
                 }
 
+                if (kekaEmployee is null)
+                {
+                    logger.LogWarning(
+                        "Incremental Sync: Keka Employee {Member} not found or some error occurred while searching the employee to update project manager. The project will not have a project manager assigned for ConnectWise project {ProjectId} - {ProjectName}.",
+                        project.Manager?.Name, project.Id, project.Name);
+                    retryEntries.Add(new RetryProjectEntry
+                    {
+                        Id = project.Id.ToString(),
+                        Name = project.Name ?? string.Empty,
+                        ErrorMessage = $"Incremental Sync: Keka Employee {project.Manager?.Name} not found or some error occurred while searching the employee to update project manager. The project will not have a project manager assigned for ConnectWise project {project.Id} - {project.Name}."
+                    });
+                }
+
                 var projectIdStr = project.Id.ToString();
 
                 if (knownProjects.TryGetValue(projectIdStr, out var existingKekaProjectId)
@@ -324,10 +362,7 @@ public sealed class ProjectOrchestrationService(
                 else
                 {
                     // New project — create in Keka then provision all 6 standard tasks.
-
-                    // BillingType sync state provides the default billing type mappings (billingType → numeric).
-                    var billingTypeSyncState = await syncStateService.GetAsync(SyncTypes.BillingType, cancellationToken);
-                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, kekaEmployee, billingTypeSyncState?.BillingType, statusMapping);
+                    var request = KekaProjectMapper.MapToKekaProjectRequest(project, kekaClientId, kekaEmployee, defaultBillingType, statusMapping);
                     var kekaProjectId = await kekaProjectService.CreateProjectAsync(request, cancellationToken);
                     logger.LogInformation(
                         "Incremental: Created Keka project {KekaProjectId} for ConnectWise project {ProjectId} - {ProjectName}.",
@@ -359,6 +394,19 @@ public sealed class ProjectOrchestrationService(
                     Id           = project.Id.ToString(),
                     Name         = project.Name ?? string.Empty,
                     ErrorMessage = tex.Message
+                });
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                logger.LogWarning(ex,
+                    "Incremental: Internal Server Error syncing ConnectWise project {ProjectId} - {ProjectName} to Keka.",
+                    project.Id, project.Name);
+                failed++;
+                retryEntries.Add(new RetryProjectEntry
+                {
+                    Id = project.Id.ToString(),
+                    Name = project.Name ?? string.Empty,
+                    ErrorMessage = ex.Message
                 });
             }
             catch (Exception ex)
@@ -414,7 +462,7 @@ public sealed class ProjectOrchestrationService(
         CancellationToken cancellationToken)
     {
         var taskStartDate = startDate.Date;
-        var taskEndDate = endDate?.Date ?? DateTime.MaxValue;
+        var taskEndDate = endDate?.Date ?? null;
 
         var definitionsByKey = ProjectTaskDefinitions.ToDictionary(t => t.Key, t => (t.Name, t.BillingType));
 

@@ -297,3 +297,33 @@ public sealed class KekaAddTimesheetEntryResponse
     [JsonPropertyName("errors")]
     public IReadOnlyList<string> Errors { get; init; } = [];
 }
+
+/// <summary>
+/// Represents a Keka rate card entry.
+/// </summary>
+public sealed class KekaRateCard
+{
+    [JsonPropertyName("billingRoleId")]
+    public string BillingRoleId { get; init; } = string.Empty;
+
+    [JsonPropertyName("roleName")]
+    public string RoleName { get; init; } = string.Empty;
+
+    [JsonPropertyName("rateCardId")]
+    public string RateCardId { get; init; } = string.Empty;
+
+    [JsonPropertyName("rateCategoryId")]
+    public string RateCategoryId { get; init; } = string.Empty;
+
+    [JsonPropertyName("rateUnit")]
+    public int RateUnit { get; init; }
+
+    [JsonPropertyName("billRate")]
+    public decimal BillRate { get; init; }
+
+    [JsonPropertyName("approxCostRate")]
+    public decimal? ApproxCostRate { get; init; }
+
+    [JsonPropertyName("rateCardName")]
+    public string RateCardName { get; init; } = string.Empty;
+}

@@ -411,6 +411,52 @@ public sealed class KekaProjectService(
         return envelope.Data;
     }
 
+    public async Task UpdateProjectAllocationAsync(
+        string projectId,
+        string allocationId,
+        KekaUpdateProjectAllocationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await SetAuthHeaderAsync(cancellationToken);
+
+        var uri = BuildUri($"/psa/projects/{projectId}/allocations/resources/{allocationId}");
+        _logger.LogDebug("Updating Keka project allocation {AllocationId} for project {ProjectId}.",
+            allocationId, projectId);
+
+        var response = await _httpClient.PutAsJsonAsync(uri, request, _jsonOptions, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            _logger.LogWarning("Received 401 updating Keka project allocation for project {ProjectId}. Refreshing token.", projectId);
+            await RefreshAuthHeaderAsync(cancellationToken);
+            response = await _httpClient.PutAsJsonAsync(uri, request, _jsonOptions, cancellationToken);
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("Failed to update Keka project allocation for project {ProjectId}. StatusCode: {StatusCode}, Body: {Body}",
+                projectId, response.StatusCode, errorBody);
+            throw new HttpRequestException(
+                $"Keka PUT /psa/projects/{projectId}/allocations/{allocationId} failed ({(int)response.StatusCode}): {errorBody}",
+                null, response.StatusCode);
+        }
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<KekaCreateProjectAllocationResponse>(_jsonOptions, cancellationToken);
+
+        if (envelope is null || !envelope.Succeeded || string.IsNullOrEmpty(envelope.Data))
+        {
+            var errors = envelope?.Errors is { Count: > 0 } e ? string.Join(", ", e) : "none";
+            _logger.LogError(
+                "Keka update project allocation for project '{ProjectId}' failed. Message: {Message}. Errors: {Errors}",
+                projectId, envelope?.Message, errors);
+        }
+
+        _logger.LogInformation("Successfully updated Keka project allocation {AllocationId} for project {ProjectId}.",
+            envelope?.Data, projectId);
+    }
+
     public async Task<IReadOnlyList<KekaProjectAllocation>> GetProjectAllocationsAsync(string projectId, CancellationToken cancellationToken = default)
     {
         await SetAuthHeaderAsync(cancellationToken);
@@ -456,37 +502,5 @@ public sealed class KekaProjectService(
 
         _logger.LogInformation("Fetched {Count} allocations for Keka project {ProjectId}.", allAllocations.Count, projectId);
         return allAllocations;
-    }
-
-    public async Task<IReadOnlyList<KekaBillingRole>> GetAllBillingRolesAsync(CancellationToken cancellationToken = default)
-    {
-        await SetAuthHeaderAsync(cancellationToken);
-
-        var uri = BuildUri("/psa/billingroles");
-        _logger.LogDebug("Fetching all Keka billing roles.");
-
-        var response = await _httpClient.GetAsync(uri, cancellationToken);
-
-        if (response.StatusCode == HttpStatusCode.Unauthorized)
-        {
-            _logger.LogWarning("Received 401 fetching Keka billing roles. Refreshing token.");
-            await RefreshAuthHeaderAsync(cancellationToken);
-            response = await _httpClient.GetAsync(uri, cancellationToken);
-        }
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogWarning("Failed to fetch Keka billing roles. StatusCode: {StatusCode}, Body: {Body}",
-                response.StatusCode, errorBody);
-            return [];
-        }
-
-        var envelope = await response.Content
-            .ReadFromJsonAsync<KekaDataListResponse<KekaBillingRole>>(_jsonOptions, cancellationToken);
-
-        var roles = (IReadOnlyList<KekaBillingRole>?)envelope?.Data ?? [];
-        _logger.LogInformation("Fetched {Count} Keka billing roles.", roles.Count);
-        return roles;
     }
 }

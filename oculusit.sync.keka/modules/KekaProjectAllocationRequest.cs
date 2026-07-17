@@ -19,6 +19,15 @@ public sealed class KekaProjectAllocationRequest
     [JsonPropertyName("billingRoleId")]
     public required string BillingRoleId { get; init; }
 
+    [JsonPropertyName("rateCardId")]
+    public string? RateCardId { get; init; }
+
+    [JsonPropertyName("rateCategoryId")]
+    public string? RateCategoryId { get; init; }
+
+    [JsonPropertyName("rateUnit")]
+    public int RateUnit { get; init; }
+
     [JsonPropertyName("billingRate")]
     public double? BillingRate { get; init; }
 
@@ -30,4 +39,10 @@ public sealed class KekaProjectAllocationRequest
 
     [JsonPropertyName("billingType")]
     public KekaProjectAllocationBillingType BillingType { get; init; }
+}
+
+public sealed class KekaUpdateProjectAllocationRequest
+{
+    [JsonPropertyName("endDate")]
+    public DateTime? EndDate { get; init; }
 }

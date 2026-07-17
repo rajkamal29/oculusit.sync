@@ -14,6 +14,7 @@ public interface IProjectOrchestrationService
     Task<ProjectSyncResult> SyncProjectsAsync(
         SyncState companySyncState,
         SyncState? projectStatusSyncState,
+        string defaultBillingType,
         IReadOnlyList<TimeEntryEmployeeDedupeState> allEmployeesState,
         KekaEmployee? defaultProjectManager,
         CancellationToken cancellationToken = default);
@@ -29,6 +30,7 @@ public interface IProjectOrchestrationService
         SyncState projectSyncState,
         SyncState companySyncState,
         SyncState? projectStatusSyncState,
+        string defaultBillingType,
         IReadOnlyList<TimeEntryEmployeeDedupeState> allEmployeesState,
         IReadOnlyList<string> retryProjectIds,
         KekaEmployee? defaultProjectManager,

@@ -7,7 +7,7 @@ namespace oculusit.sync;
 
 public sealed partial class Worker
 {
-    private async Task SyncTimeSheetAsync(IReadOnlyList<string> retryTimeSheetIds, CancellationToken stoppingToken)
+    private async Task SyncTimeSheetAsync(IReadOnlyList<string> retryTimeSheetIds, string timeOffWorkType, CancellationToken stoppingToken)
     {
         var timeSheetState = await syncStateService.GetAsync(SyncTypes.TimeSheets, stoppingToken);
 
@@ -135,9 +135,8 @@ public sealed partial class Worker
                             timesheet.Id, stoppingToken);
 
                         var hasRejection = auditTrail.Any(a =>
-                            IsResubmissionStatus(a.StatusAfter)  ||
-                            IsResubmissionStatus(a.StatusBefore) ||
-                            IsResubmissionStatus(a.TransactionType));
+                            IsResubmissionStatus(a.NewValue) ||
+                            a.Message?.Contains("rejection", StringComparison.OrdinalIgnoreCase) == true);
 
                         if (!hasRejection)
                         {
@@ -154,16 +153,6 @@ public sealed partial class Worker
                             "but re-sync to Keka is not yet supported. Please update this timesheet in Keka manually.",
                             timesheet.Id, memberId, year, period);
 
-                        retryTimeSheetEntries.Add(new RetryTimeSheetEntry
-                        {
-                            Id = timesheet.Id.ToString(CultureInfo.InvariantCulture),
-                            MemberId = memberId,
-                            Email = employeeState.Email,
-                            Year = year,
-                            Period = period,
-                            ErrorMessage = "Timesheet has rejection history and cannot be automatically re-synced. Please update this timesheet in Keka manually."
-                        });
-
                         totalSkipped++;
                         continue;
                     }
@@ -174,7 +163,7 @@ public sealed partial class Worker
                         timesheet.Id, memberId, year, period);
 
                     var timeEntries = await connectWiseTimeEntryService.GetTimeEntriesByTimesheetIdAsync(
-                        timesheet.Id, stoppingToken);
+                        timesheet.Id, timeOffWorkType, stoppingToken);
 
                     var postedCount = await timeEntryOrchestrationService.LogTimeEntriesBatchAsync(
                         timeEntries,
@@ -298,9 +287,9 @@ public sealed partial class Worker
         if (string.IsNullOrWhiteSpace(status))
             return false;
 
-        return status.Contains("Reject",          StringComparison.OrdinalIgnoreCase) ||
-               status.Contains("ErrorsCorrected", StringComparison.OrdinalIgnoreCase) ||
-               status.Contains("Written Off",     StringComparison.OrdinalIgnoreCase);
+        return status.Contains("Rejected",           StringComparison.OrdinalIgnoreCase) ||
+               status.Contains("Errors Corrected",   StringComparison.OrdinalIgnoreCase) ||
+               status.Contains("Written Off",        StringComparison.OrdinalIgnoreCase);
     }
 
     private static DateTime ResolveStartWeekUtc(Dictionary<int, HashSet<int>> syncedPeriods, DateTime previousWeekStartUtc)
@@ -363,7 +352,7 @@ public sealed partial class Worker
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        logger.LogInformation("Found {Count} retry timesheets in RetryTimeSheets SyncState.", candidateTimeSheetIds.Count);
+        logger.LogInformation("Found {Count} retry timesheets in database.", candidateTimeSheetIds.Count);
         return candidateTimeSheetIds;
     }
 }

@@ -10,62 +10,42 @@ public sealed class ConnectWiseTimesheetAuditTrail
     [JsonPropertyName("id")]
     public int Id { get; init; }
 
-    [JsonPropertyName("transactionType")]
-    public string TransactionType { get; init; } = string.Empty;
+    [JsonPropertyName("member")]
+    public ConnectWiseAuditMember? Member { get; init; }
 
-    [JsonPropertyName("dateTimeStamp")]
-    public DateTime? DateTimeStamp { get; init; }
+    [JsonPropertyName("source")]
+    public string? Source { get; init; }
 
-    /// <summary>
-    /// The user who performed the action
-    /// </summary>
-    [JsonPropertyName("user")]
-    public string? User { get; init; }
+    [JsonPropertyName("type")]
+    public string? Type { get; init; }
 
-    /// <summary>
-    /// Brief description of the audit action
-    /// </summary>
-    [JsonPropertyName("details")]
-    public string? Details { get; init; }
+    [JsonPropertyName("message")]
+    public string? Message { get; init; }
 
-    /// <summary>
-    /// Field name that was changed
-    /// </summary>
-    [JsonPropertyName("fieldName")]
-    public string? FieldName { get; init; }
-
-    /// <summary>
-    /// Old value before the change
-    /// </summary>
     [JsonPropertyName("oldValue")]
     public string? OldValue { get; init; }
 
-    /// <summary>
-    /// New value after the change
-    /// </summary>
     [JsonPropertyName("newValue")]
     public string? NewValue { get; init; }
 
-    /// <summary>
-    /// Status before the action
-    /// </summary>
-    [JsonPropertyName("statusBefore")]
-    public string? StatusBefore { get; init; }
-
-    /// <summary>
-    /// Status after the action
-    /// </summary>
-    [JsonPropertyName("statusAfter")]
-    public string? StatusAfter { get; init; }
-
     [JsonPropertyName("_info")]
-    public ConnectWiseTimesheetAuditTrailInfo? Info { get; init; }
-
-    public DateTime? LastUpdated => Info?.LastUpdated;
+    public Dictionary<string, string>? Info { get; init; }
 }
 
-public sealed class ConnectWiseTimesheetAuditTrailInfo
+public sealed class ConnectWiseAuditMember
 {
-    [JsonPropertyName("lastUpdated")]
-    public DateTime? LastUpdated { get; init; }
+    [JsonPropertyName("id")]
+    public int Id { get; init; }
+
+    [JsonPropertyName("identifier")]
+    public string? Identifier { get; init; }
+
+    [JsonPropertyName("_info")]
+    public Dictionary<string, string>? Info { get; init; }
+}
+
+public sealed class ConnectWiseAuditMemberInfo
+{
+    [JsonPropertyName("member_href")]
+    public string? MemberHref { get; init; }
 }

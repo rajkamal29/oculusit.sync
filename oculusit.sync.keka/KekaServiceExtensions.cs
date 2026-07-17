@@ -60,6 +60,7 @@ public static class KekaServiceExtensions
         services.AddSingleton<IKekaProjectService, KekaProjectService>();
         services.AddSingleton<IKekaTimesheetEntryService, KekaTimesheetEntryService>();
         services.AddSingleton<IKekaEmployeeService, KekaEmployeeService>();
+        services.AddSingleton<IKekaFinanceService, KekaFinanceService>();
 
         return services;
     }
