@@ -475,26 +475,11 @@ public sealed class TimeEntryOrchestrationService(
     {
         minutes = 0;
 
-        if (entry.HoursBilled.HasValue)
+        if (entry.ActualHours.HasValue)
         {
-            minutes = (int)Math.Round(entry.HoursBilled.Value * 60m, MidpointRounding.AwayFromZero);
+            minutes = (int)Math.Round(entry.ActualHours.Value * 60m, MidpointRounding.AwayFromZero);
             if (minutes > 0)
                 return true;
-        }
-
-        if (entry.HoursActual.HasValue)
-        {
-            minutes = (int)Math.Round(entry.HoursActual.Value * 60m, MidpointRounding.AwayFromZero);
-            if (minutes > 0)
-                return true;
-        }
-
-        var start = NormalizeUtc(entry.TimeStart);
-        var end = NormalizeUtc(entry.TimeEnd);
-        if (start.HasValue && end.HasValue && end > start)
-        {
-            minutes = (int)Math.Round((end.Value - start.Value).TotalMinutes, MidpointRounding.AwayFromZero);
-            return minutes > 0;
         }
 
         return false;

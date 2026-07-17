@@ -13,7 +13,7 @@ public sealed class ConnectWiseTimeEntryService(
 {
     private const string Fields =
         "id,member,company,project,workRole,workType,chargeToType,chargeToId," +
-        "timeStart,timeEnd,hoursActual,hoursBilled,hoursDeduct,agreement,ticket,phase," +
+        "timeStart,timeEnd,actualHours,hoursBilled,hoursDeduct,agreement,ticket,phase," +
         "billableOption,taxable,invoiceId,enteredBy,enteredDate," +
         "notes,internalNotes,emailResourceFlag,emailContactFlag,emailCcFlag," +
         "hourlyRate,mobileGuid,_info,status";

@@ -40,8 +40,8 @@ public sealed class ConnectWiseTimeEntry
     [JsonPropertyName("timeEnd")]
     public DateTime? TimeEnd { get; init; }
 
-    [JsonPropertyName("hoursActual")]
-    public decimal? HoursActual { get; init; }
+    [JsonPropertyName("actualHours")]
+    public decimal? ActualHours { get; init; }
 
     [JsonPropertyName("hoursBilled")]
     public decimal? HoursBilled { get; init; }
