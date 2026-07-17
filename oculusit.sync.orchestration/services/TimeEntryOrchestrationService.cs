@@ -192,8 +192,6 @@ public sealed class TimeEntryOrchestrationService(
                 NumberOfMinutes  = minutes,
                 Date             = normalizedStart.Date,
                 Comment          = $"CW TimeEntry {entry.Id}",
-                                            ? $"CW TimeEntry {entry.Id}"
-                                            : $"CW TimeEntry {entry.Id} - {entry.Notes}",
                 StartTime        = ToKekaTimeInt(normalizedStart),
                 EndTime          = ToKekaTimeInt(normalizedEnd)
             });
