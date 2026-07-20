@@ -43,8 +43,8 @@ public sealed class TimeEntryOrchestrationService(
             return false;
         }
 
-        var normalizedStart = NormalizeUtc(entry.TimeStart) ?? DateTime.UtcNow;
-        var normalizedEnd = NormalizeUtc(entry.TimeEnd) ?? normalizedStart.AddMinutes(minutes);
+        var normalizedStart = ConvertUtcToEst(entry.TimeStart) ?? DateTime.UtcNow;
+        var normalizedEnd = ConvertUtcToEst(entry.TimeEnd) ?? normalizedStart.AddMinutes(minutes);
 
         var kekaEmployee = await kekaEmployeeService.SearchEmployeeByEmailAsync(employeeEmail.Trim(), cancellationToken);
         if (kekaEmployee is null || string.IsNullOrWhiteSpace(kekaEmployee.Id))
@@ -92,7 +92,7 @@ public sealed class TimeEntryOrchestrationService(
                 ProjectId = kekaProject.Id,
                 TaskId = taskId,
                 NumberOfMinutes = minutes,
-                Date = normalizedStart.Date,
+                Date = DateOnly.FromDateTime(normalizedStart),
                 Comment = string.IsNullOrWhiteSpace(entry.Notes)
                     ? $"CW TimeEntry {entry.Id}"
                     : $"CW TimeEntry {entry.Id} - {entry.Notes}",
@@ -182,15 +182,20 @@ public sealed class TimeEntryOrchestrationService(
             if (allocatedProjectIds.Add(kekaProject.Id))
                 await EnsureProjectAllocationAsync(kekaProject, kekaEmployee, cancellationToken);
 
-            var normalizedStart = NormalizeUtc(entry.TimeStart) ?? DateTime.UtcNow;
-            var normalizedEnd   = NormalizeUtc(entry.TimeEnd)   ?? normalizedStart.AddMinutes(minutes);
+            logger.LogInformation("Start time of TimeEntry {TimeEntryId} in UTC format: {StartTime}", entry.Id, entry.TimeStart);
+
+            var normalizedStart = ConvertUtcToEst(entry.TimeStart) ?? DateTime.UtcNow;
+            var normalizedEnd   = ConvertUtcToEst(entry.TimeEnd)   ?? normalizedStart.AddMinutes(minutes);
+
+            var startDate = DateOnly.FromDateTime(normalizedStart);
+            logger.LogInformation("Start time of TimeEntry {TimeEntryId} in EST format: {StartTime} and {startDate}", entry.Id, normalizedStart, startDate);
 
             batchRequest.Add(new()
             {
                 ProjectId        = kekaProject.Id,
                 TaskId           = taskId,
                 NumberOfMinutes  = minutes,
-                Date             = normalizedStart.Date,
+                Date             = startDate,
                 Comment          = $"CW TimeEntry {entry.Id}",
                 StartTime        = ToKekaTimeInt(normalizedStart),
                 EndTime          = ToKekaTimeInt(normalizedEnd)
@@ -436,7 +441,7 @@ public sealed class TimeEntryOrchestrationService(
             return existingTask.Id;
         }
 
-        var fallbackStartDate = (NormalizeUtc(timeStart) ?? DateTime.UtcNow).Date;
+        var fallbackStartDate = (ConvertUtcToEst(timeStart) ?? DateTime.UtcNow).Date;
         var startDate = kekaProject.StartDate?.Date ?? fallbackStartDate;
         var endDate = kekaProject.EndDate?.Date ?? null;
 
@@ -485,12 +490,17 @@ public sealed class TimeEntryOrchestrationService(
         return false;
     }
 
-    private static DateTime? NormalizeUtc(DateTime? value)
+    private static DateTime? ConvertUtcToEst(DateTime? value)
     {
         if (!value.HasValue)
             return null;
 
-        return value.Value.Kind == DateTimeKind.Utc ? value.Value : value.Value.ToUniversalTime();
+        if (value.Value.Kind != DateTimeKind.Utc)
+            return value.Value;
+
+        return TimeZoneInfo.ConvertTimeFromUtc(
+            value.Value,
+            TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
     }
 
     private static int ToKekaTimeInt(DateTime dateTimeUtc) => (dateTimeUtc.Hour * 100) + dateTimeUtc.Minute;

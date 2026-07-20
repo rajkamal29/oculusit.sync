@@ -18,7 +18,7 @@ public sealed class KekaTimesheetEntryRequest
     public int NumberOfMinutes { get; init; }
 
     [JsonPropertyName("date")]
-    public DateTime Date { get; init; }
+    public DateOnly Date { get; init; }
 
     [JsonPropertyName("comment")]
     public string Comment { get; init; } = string.Empty;
