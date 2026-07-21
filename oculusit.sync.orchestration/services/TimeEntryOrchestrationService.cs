@@ -157,7 +157,7 @@ public sealed class TimeEntryOrchestrationService(
             if (kekaProject is null)
             {
                 logger.LogWarning("Skipping time entry {TimeEntryId} in batch — Keka project could not be resolved.", entry.Id);
-                throw new InvalidOperationException($"Skipping time entry {entry.Id} in batch —  Connectwise project {entry.Project?.Name} not found in keka or Keka project could not be resolved.");
+                throw new InvalidOperationException($"Skipping time entry {entry.Id} in batch —  Connectwise project ( Project Name : {entry.Project?.Name}) not found in keka or Keka project could not be resolved.");
             }
 
             var taskName = ResolveTaskName(entry.BillableOption, entry.ChargeToType);
@@ -175,7 +175,7 @@ public sealed class TimeEntryOrchestrationService(
                 logger.LogWarning(
                     "Skipping time entry {TimeEntryId} in batch — task {TaskName} could not be resolved or created.",
                     entry.Id, taskName);
-                throw new InvalidOperationException($"Skipping time entry {entry.Id} in batch — task {taskName} could not be resolved or created.");
+                throw new InvalidOperationException($"Skipping time entry {entry.Id} in batch — task ({taskName}) could not be resolved or created for project ({kekaProject.Name}).");
             }
 
             // Ensure allocation once per unique project in this batch
@@ -228,7 +228,7 @@ public sealed class TimeEntryOrchestrationService(
             if (string.IsNullOrWhiteSpace(mappedProject?.KekaProjectId))          
             {
                 logger.LogWarning(
-                    "No Keka project mapping found for ConnectWise Project Name: {ProjectName} Project Id: {ProjectId} on time entry {TimeEntryId}.",
+                    "No Keka project mapping found for ConnectWise Project Id: {ProjectId} Project Name: {ProjectName} for time entry {TimeEntryId}.",
                     entry.Project.Id,
                     entry.Project.Name,
                     entry.Id);
@@ -302,34 +302,6 @@ public sealed class TimeEntryOrchestrationService(
                 "Employee {EmployeeEmail} already has an allocation on Keka project {ProjectName}. Skipping creation.",
                 kekaEmployee.Email,
                 kekaProject.Name);
-
-            var projectEndDate = kekaProject.EndDate?.Date;
-            if (projectEndDate.HasValue && existingAllocation.EndDate?.Date != projectEndDate)
-            {
-                try
-                {
-                    await kekaProjectService.UpdateProjectAllocationAsync(
-                        kekaProject.Id,
-                        existingAllocation?.Id ?? string.Empty,
-                        new KekaUpdateProjectAllocationRequest { EndDate = projectEndDate },
-                        cancellationToken);
-
-                    logger.LogInformation(
-                        "Updated end date of allocation {AllocationId} to Keka project {ProjectName} to {EndDate}.",
-                        existingAllocation?.Id,
-                        kekaProject.Name,
-                        projectEndDate.Value);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(
-                        ex,
-                        "Failed to update end date of allocation {AllocationId} on Keka project {ProjectName}. Continuing with existing allocation.",
-                        existingAllocation.Id,
-                        kekaProject.Name);
-                }
-            }
-
             return;
         }
 
@@ -351,7 +323,7 @@ public sealed class TimeEntryOrchestrationService(
                     "No Keka billing role found matching department '{Department}' for employee {EmployeeId}.",
                     departmentName,
                     kekaEmployee.Id);
-                throw new InvalidOperationException($"No Keka billing role found matching department '{departmentName}' for employee {kekaEmployee.Id}.");
+                throw new InvalidOperationException($"No Keka billing role found matching department '{departmentName}' for employee {kekaEmployee.Email}.");
             }
         }
         else
@@ -360,7 +332,7 @@ public sealed class TimeEntryOrchestrationService(
                 "Employee {EmployeeId} has no department group (groupType={GroupType}). Billing role will not be set on allocation.",
                 kekaEmployee.Id,
                 DepartmentGroupType);
-            throw new InvalidOperationException($"Employee {kekaEmployee.Id} has no department group (groupType={DepartmentGroupType}). Billing role will not be set on allocation.");
+            throw new InvalidOperationException($"Employee {kekaEmployee.Email} has no department group (groupType={DepartmentGroupType}). Billing role will not be set on allocation.");
         }
 
         var startDate = kekaProject.StartDate?.Date ?? DateTime.UtcNow.Date;
@@ -374,7 +346,7 @@ public sealed class TimeEntryOrchestrationService(
             RateCategoryId = billingRole.RateCategoryId,
             RateUnit = billingRole.RateUnit,
             StartDate = startDate,
-            EndDate = kekaProject.EndDate?.Date ?? null,
+            EndDate = null,
             BillingType = kekaProject.IsBillable
                 ? KekaProjectAllocationBillingType.Billable
                 : KekaProjectAllocationBillingType.NonBillable
@@ -388,7 +360,7 @@ public sealed class TimeEntryOrchestrationService(
                 "Failed to create project allocation for employee {EmployeeId} on Keka project {ProjectName}.",
                 kekaEmployee.Id,
                 kekaProject.Name);
-            throw new InvalidOperationException($"Failed to create project allocation for employee {kekaEmployee.Id} on Keka project {kekaProject.Id}.");
+            throw new InvalidOperationException($"Failed to create project allocation for employee {kekaEmployee.Email} on Keka project {kekaProject.Name}.");
         }
 
         logger.LogInformation(
@@ -409,48 +381,17 @@ public sealed class TimeEntryOrchestrationService(
             string.Equals(t.Name, taskName, StringComparison.OrdinalIgnoreCase));
 
         if (existingTask is not null && !string.IsNullOrWhiteSpace(existingTask.Id))
-        {
-            var projectEndDate = kekaProject.EndDate?.Date;
-            if (projectEndDate.HasValue && existingTask.EndDate?.Date != projectEndDate)
-            {
-                try
-                {
-                    await kekaProjectService.UpdateTaskAsync(
-                        kekaProject.Id,
-                        existingTask.Id,
-                        new KekaTaskUpdateRequest { EndDate = projectEndDate },
-                        cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(
-                        ex,
-                        "Failed to update end date of task {TaskId} on Keka project {ProjectName}. Continuing with existing task.",
-                        existingTask.Id,
-                        kekaProject.Name);
-                    return string.Empty;
-                }
-
-                logger.LogInformation(
-                    "Updated end date of task {TaskId} on Keka project {ProjectName} to {EndDate}.",
-                    existingTask.Id,
-                    kekaProject.Name,
-                    projectEndDate.Value);
-            }
-
             return existingTask.Id;
-        }
 
         var fallbackStartDate = (ConvertUtcToEst(timeStart) ?? DateTime.UtcNow).Date;
         var startDate = kekaProject.StartDate?.Date ?? fallbackStartDate;
-        var endDate = kekaProject.EndDate?.Date ?? null;
 
         var createRequest = new KekaTaskRequest
         {
             ProjectId = kekaProject.Id,
             Name = taskName,
             StartDate = startDate,
-            EndDate = endDate,
+            EndDate = null,
             TaskBillingType = IsBillableTaskName(taskName) ? 1 : 0
         };
 

@@ -34,8 +34,8 @@ public sealed class ProjectStatusOrchestrationService(
 
             ["Terminated"]                       = "2",
 
-            ["Not Started"]                      = "3",
-            ["1. New"]                           = "3",
+            ["Not Started"]                      = "0",
+            ["1. New"]                           = "0",
 
             ["On-Hold"]                          = "4",
         };

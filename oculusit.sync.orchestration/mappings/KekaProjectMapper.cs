@@ -29,7 +29,7 @@ public static class KekaProjectMapper
             Code        = project.Id.ToString(),
             Status      = MapStatus(project.Status?.Name, statusMapping),
             StartDate   = startDate,
-            EndDate     = endDate,
+            EndDate     = null,
             IsBillable  = true,
             BillingType = int.Parse(billingType ?? "1"),
             ProjectManager = new List<string> { kekaEmployee?.Id ?? string.Empty }
@@ -50,7 +50,7 @@ public static class KekaProjectMapper
             Code        = project.Id.ToString(),
             Status      = MapStatus(project.Status?.Name, statusMapping),
             StartDate   = startDate,
-            EndDate     = endDate,
+            EndDate     = null,
             ProjectManager = new List<string> { kekaEmployee?.Id ?? string.Empty }
         };
     }

@@ -140,7 +140,7 @@ public sealed class ProjectOrchestrationService(
                     // Project was just created — no tasks exist yet, skip the Keka existence check.
                     await SyncProjectTasksAsync(
                         kekaProjectId, project.Id.ToString(), project.Name ?? string.Empty,
-                        request.StartDate, request.EndDate, allKeys,
+                        request.StartDate, allKeys,
                         checkKekaForExistingTasks: false, cancellationToken);
 
                     created++;
@@ -163,7 +163,7 @@ public sealed class ProjectOrchestrationService(
                     // Use Keka API as source of truth — skip tasks that already exist, create missing ones.
                     await SyncProjectTasksAsync(
                         existing.Id, project.Id.ToString(), project.Name ?? string.Empty,
-                        updateRequest.StartDate, updateRequest.EndDate, allKeys,
+                        updateRequest.StartDate, allKeys,
                         checkKekaForExistingTasks: true, cancellationToken);
 
                     syncedEntries.Add(new SyncedProjectEntry
@@ -371,7 +371,7 @@ public sealed class ProjectOrchestrationService(
                     // Project was just created — no tasks exist yet, skip the Keka existence check.
                     await SyncProjectTasksAsync(
                         kekaProjectId, projectIdStr, project.Name ?? string.Empty,
-                        request.StartDate, request.EndDate, allKeys,
+                        request.StartDate, allKeys,
                         checkKekaForExistingTasks: false, cancellationToken);
 
                     created++;
@@ -456,13 +456,11 @@ public sealed class ProjectOrchestrationService(
         string cwProjectId,
         string cwProjectName,
         DateTime startDate,
-        DateTime? endDate,
         IEnumerable<string> keysToCreate,
         bool checkKekaForExistingTasks,
         CancellationToken cancellationToken)
     {
         var taskStartDate = startDate.Date;
-        var taskEndDate = endDate?.Date ?? null;
 
         var definitionsByKey = ProjectTaskDefinitions.ToDictionary(t => t.Key, t => (t.Name, t.BillingType));
 
@@ -517,7 +515,7 @@ public sealed class ProjectOrchestrationService(
                         ProjectId       = kekaProjectId,
                         Name            = name,
                         StartDate       = taskStartDate,
-                        EndDate         = taskEndDate,
+                        EndDate         = null,
                         TaskBillingType = billingType
                     },
                     cancellationToken);

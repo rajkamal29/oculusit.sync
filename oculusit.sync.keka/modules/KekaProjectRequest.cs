@@ -56,7 +56,7 @@ public sealed class KekaProjectUpdateRequest
     public DateTime StartDate { get; init; }
 
     [JsonPropertyName("endDate")]
-    public DateTime EndDate { get; init; }
+    public DateTime? EndDate { get; init; }
 
     [JsonPropertyName("projectManager")]
     public IReadOnlyList<string>? ProjectManager { get; init; }
