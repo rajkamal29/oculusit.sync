@@ -228,20 +228,23 @@ public sealed class TimeEntryOrchestrationService(
             if (string.IsNullOrWhiteSpace(mappedProject?.KekaProjectId))          
             {
                 logger.LogWarning(
-                    "No Keka project mapping found for ConnectWise Project Id: {ProjectId} Project Name: {ProjectName} for time entry {TimeEntryId}.",
+                    "No Keka project mapping found for ConnectWise Project Id: {ProjectId} (Project Name: {ProjectName}) for time entry {TimeEntryId}.",
                     entry.Project.Id,
                     entry.Project.Name,
                     entry.Id);
-                return null;
+                throw new InvalidOperationException($"Keka project not found for ConnectWise Project Id: {entry.Project.Id} (Project Name: {entry.Project.Name}) for time entry {entry.Id}.");
             }
 
             var kekaProject = await kekaProjectService.GetProjectByIdAsync(mappedProject.KekaProjectId, cancellationToken);
             if (kekaProject is null)
+            {
                 logger.LogWarning(
-                    "Keka project {KekaProjectId} not found via API for ConnectWise Project Name: {ProjectName} Project Id: {ProjectId}.",
+                    "Keka project {KekaProjectId} not found via API for ConnectWise (Project Name: {ProjectName}) (Project Id: {ProjectId}).",
                     mappedProject.KekaProjectId,
                     entry.Project.Name,
                     entry.Project.Id);
+                throw new InvalidOperationException($"Keka project {mappedProject.KekaProjectId} not found via API for ConnectWise Project Name: {entry.Project.Name} (Project Id: {entry.Project.Id}).");
+            }
 
             return kekaProject;
         }
@@ -249,7 +252,7 @@ public sealed class TimeEntryOrchestrationService(
         if (entry.Company is null || entry.Company.Id <= 0)
         {
             logger.LogWarning("Time entry {TimeEntryId} does not contain project or company context.", entry.Id);
-            return null;
+            throw new InvalidOperationException($"Time entry {entry.Id} does not contain project or company context.");
         }
 
         var companyState = await syncStateService.GetAsync(SyncTypes.Company, cancellationToken);
@@ -260,11 +263,11 @@ public sealed class TimeEntryOrchestrationService(
         if (string.IsNullOrWhiteSpace(kekaClientId))
         {
             logger.LogWarning(
-                "No Keka client mapping found for ConnectWise Company Name: {CompanyName} Company Id: {CompanyId} on time entry {TimeEntryId}.",
+                "No Keka client mapping found for ConnectWise Company Id: {CompanyId} (Company Name: {CompanyName}) on time entry {TimeEntryId}.",
                 entry.Company.Id,
                 entry.Company.Name,
                 entry.Id);
-            return null;
+            throw new InvalidOperationException($"Keka client not found for ConnectWise Company Id: {entry.Company.Id} (Company Name: {entry.Company.Name}) on time entry {entry.Id}.");
         }
 
         var projects = await kekaProjectService.GetProjectsByClientIdAsync(kekaClientId, cancellationToken);
@@ -276,11 +279,11 @@ public sealed class TimeEntryOrchestrationService(
         if (defaultProject is null || string.IsNullOrWhiteSpace(defaultProject.Id))
         {
             logger.LogWarning(
-                "Default project was not found for ConnectWise Company Name: {CompanyName} Company Id: {CompanyId} (expected code {ProjectCode}).",
+                "Default project was not found for ConnectWise Company Id: {CompanyId} (Company Name: {CompanyName}) (expected code {ProjectCode}).",
                 entry.Company.Id,
                 entry.Company.Name,
                 defaultProjectCode);
-            return null;
+            throw new InvalidOperationException($"Default project not found for ConnectWise Company Id: {entry.Company.Id} (Company Name: {entry.Company.Name}) (expected code {defaultProjectCode}).");
         }
 
         return defaultProject;
