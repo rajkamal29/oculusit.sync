@@ -196,7 +196,7 @@ public sealed class TimeEntryOrchestrationService(
                 TaskId           = taskId,
                 NumberOfMinutes  = minutes,
                 Date             = startDate,
-                Comment          = $"CW TimeEntry {entry.Id}",
+                Comment          = $"CW TimeEntry {(entry.ChargeToId ?? entry.Project?.Id ?? entry.Company?.Id)?.ToString() ?? "NA"}",
                 StartTime        = ToKekaTimeInt(normalizedStart),
                 EndTime          = ToKekaTimeInt(normalizedEnd)
             });
