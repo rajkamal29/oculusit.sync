@@ -147,7 +147,7 @@ public sealed class TimeEntryOrchestrationService(
 
         foreach (var entry in entries)
         {
-            if (!TryResolveMinutes(entry, out var minutes) || minutes <= 0)
+            if (!TryResolveMinutes(entry, out var minutes) || minutes < 0)
             {
                 logger.LogWarning("Skipping time entry {TimeEntryId} in batch — minutes could not be resolved.", entry.Id);
                 continue;
@@ -204,8 +204,9 @@ public sealed class TimeEntryOrchestrationService(
 
         if (batchRequest.Count == 0)
         {
-            logger.LogWarning("Batch for employee {Email} resolved to 0 valid entries — nothing posted to Keka.", employeeEmail);
-            throw new InvalidOperationException($"Batch for employee {employeeEmail} resolved to 0 valid entries — nothing posted to Keka.");
+            logger.LogWarning(
+                "Skipping timesheet sync for employee {Email} because no time entries were found for the week. A possible reason is that leave was applied for the entire week.",
+                employeeEmail);
         }
 
         await kekaTimesheetEntryService.CreateTimesheetEntryAsync(kekaEmployee.Id, batchRequest, cancellationToken);
@@ -427,11 +428,9 @@ public sealed class TimeEntryOrchestrationService(
         if (entry.ActualHours.HasValue)
         {
             minutes = (int)Math.Round(entry.ActualHours.Value * 60m, MidpointRounding.AwayFromZero);
-            if (minutes > 0)
-                return true;
         }
 
-        return false;
+        return true;
     }
 
     private static DateTime? ConvertUtcToEst(DateTime? value)
